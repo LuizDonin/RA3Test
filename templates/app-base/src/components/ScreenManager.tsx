@@ -10,6 +10,7 @@ import { SettingsScreen } from './screens/SettingsScreen'
 import { AboutScreen } from './screens/AboutScreen'
 import { FinalScreen } from './screens/FinalScreen'
 import { SelfieScreen } from './screens/SelfieScreen'
+import { Quiz1 } from './screens/Quiz1'
 // import { RADataDisplay } from './RADataDisplay' // Removido
 import type { ScreenType, TransitionType, TransitionDirection } from '../types/screens'
 import '../styles/screens.css'
@@ -71,9 +72,14 @@ export const ScreenManager: React.FC<ScreenManagerProps> = ({
 
   // Função para determinar direção automática baseada na ordem das telas
   const getAutoDirection = (from: ScreenType, to: ScreenType): TransitionDirection => {
-    const screenOrder = ['loading', 'cover', 'tutorial', 'rocket', 'tutorial2', 'ar', 'resultado', 'final', 'settings', 'about', 'selfie']
+    const screenOrder = ['loading', 'cover', 'tutorial', 'ar', 'quiz1', 'resultado', 'final', 'settings', 'about', 'selfie']
     const fromIndex = screenOrder.indexOf(from)
     const toIndex = screenOrder.indexOf(to)
+
+    // Se alguma tela não estiver na lista, usar direção padrão
+    if (fromIndex === -1 || toIndex === -1) {
+      return 'right'
+    }
 
     if (toIndex > fromIndex) return 'right'
     if (toIndex < fromIndex) return 'left'
@@ -85,6 +91,8 @@ export const ScreenManager: React.FC<ScreenManagerProps> = ({
     transition?: TransitionType,
     direction?: TransitionDirection
   ) => {
+    console.log('🧭 navigateTo chamado:', { from: currentScreen, to: screen, transition, direction })
+    
     const finalTransition = transition || transitionType
     const finalDirection = direction || getAutoDirection(currentScreen, screen)
 
@@ -99,6 +107,7 @@ export const ScreenManager: React.FC<ScreenManagerProps> = ({
     setIsTransitioning(true)
 
     setTimeout(() => {
+      console.log('✅ Mudando tela de', currentScreen, 'para', screen)
       setCurrentScreen(screen)
       setIsTransitioning(false)
     }, duration)
@@ -110,6 +119,8 @@ export const ScreenManager: React.FC<ScreenManagerProps> = ({
   // }
 
   const renderScreen = () => {
+    console.log('🎨 renderScreen chamado para:', currentScreen)
+    
     switch (currentScreen) {
       case 'loading':
         return <LoadingScreen onNavigate={navigateTo} />
@@ -139,7 +150,10 @@ export const ScreenManager: React.FC<ScreenManagerProps> = ({
         return <AboutScreen onNavigate={navigateTo} />
       case 'selfie':
         return <SelfieScreen onNavigate={navigateTo} />
+      case 'quiz1':
+        return <Quiz1 onNavigate={navigateTo} />
       default:
+        console.warn('⚠️ Tela desconhecida:', currentScreen)
         return <LoadingScreen onNavigate={navigateTo} />
     }
   }

@@ -31,6 +31,15 @@ a-scene canvas {
   /* A-Frame abaixo de tudo */
 }
 
+/* Esconder canvas do A-Frame quando não estiver na tela AR */
+body:not(:has(.ar-game-screen)) a-scene canvas {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  z-index: -9999 !important;
+}
+
 /* Canvas do A-Frame no topo APENAS na tela de loading */
 body:has(.loading-screen) a-scene canvas {
   z-index: 999999 !important;
@@ -69,6 +78,15 @@ body:has(.loading-screen) a-scene {
 
 body:has(.ar-game-screen) a-scene {
   z-index: 1 !important;
+}
+
+/* Esconder a-scene quando não estiver na tela AR */
+body:not(:has(.ar-game-screen)) a-scene {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  z-index: -9999 !important;
 }
 
 /* Modal do A-Frame - DEVE SER CLICÁVEL - SOBRESCREVER TUDO */
@@ -150,6 +168,15 @@ body:has(.ar-game-screen) #arjs-video,
   display: block !important;
   visibility: visible !important;
   opacity: 1 !important;
+}
+
+/* Esconder vídeo quando não estiver na tela AR */
+body:not(:has(.ar-game-screen)) #arjs-video {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  z-index: -9999 !important;
 }
 
 /* Classe para mostrar vídeo - deve ter especificidade maior */

@@ -1,0 +1,266 @@
+/* Estado inicial - esconde todos os elementos antes da animação */
+.quiz1-enunciado-initial {
+  opacity: 0 !important;
+  transform: translateY(-100px) !important;
+  visibility: hidden;
+}
+
+/* Enunciado - vem de cima */
+.quiz1-enunciado:not(.quiz1-enunciado-exit) {
+  opacity: 0;
+  transform: translateY(-100px);
+  visibility: visible;
+  animation: quiz1-slide-down 0.85s cubic-bezier(0.61, 0.01, 0.32, 1.03) forwards;
+}
+
+@keyframes quiz1-slide-down {
+  from {
+    opacity: 0;
+    transform: translateY(-100px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Container das opções - não precisa de animação, apenas as opções individuais */
+
+/* Estado inicial das opções - esconde antes da animação */
+.quiz1-option-initial {
+  opacity: 0 !important;
+  transform: translateY(-60px) scale(0.9) !important;
+  visibility: hidden;
+}
+
+/* Opções - vêm de cima com delays escalonados */
+.quiz1-option:not(.quiz1-option-exit) {
+  opacity: 0;
+  transform: translateY(-60px) scale(0.9);
+  visibility: visible;
+  animation: quiz1-option-in 0.7s cubic-bezier(0.62, 0, 0.36, 1) forwards;
+}
+
+/* Delays para opções individuais (nth-child) */
+.quiz1-option:nth-child(1) {
+  animation-delay: 0.3s;
+}
+
+.quiz1-option:nth-child(2) {
+  animation-delay: 0.5s;
+}
+
+.quiz1-option:nth-child(3) {
+  animation-delay: 0.7s;
+}
+
+@keyframes quiz1-option-in {
+  from {
+    opacity: 0;
+    transform: translateY(-60px) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Estado inicial do pelicano - esconde antes da animação */
+.quiz1-pelicano-mascote-initial {
+  opacity: 0 !important;
+  transform: translateY(80px) scale(0.9) !important;
+  visibility: hidden;
+}
+
+/* Pelicano mascote - vem de baixo */
+.quiz1-pelicano-mascote {
+  opacity: 0;
+  transform: translateY(80px) scale(0.9);
+  visibility: visible;
+  animation: quiz1-pelicano-up 0.9s cubic-bezier(0.70, 0, 0.35, 1.02) forwards;
+  animation-delay: 0.4s; /* Começa um pouco depois do enunciado */
+}
+
+@keyframes quiz1-pelicano-up {
+  from {
+    opacity: 0;
+    transform: translateY(80px) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Layout responsivo */
+.quiz1-container {
+  /* Garantir que o container ocupe toda a altura da viewport */
+  min-height: 100vh;
+  min-height: -webkit-fill-available; /* iOS Safari */
+}
+
+.quiz1-quiz-section {
+  /* Garantir que a seção do quiz tenha scroll se necessário */
+  min-height: 0; /* Permite que o flex shrink funcione */
+}
+
+/* Ajustes para telas muito pequenas */
+@media (max-height: 600px) {
+  .quiz1-quiz-section {
+    flex: 0 0 70% !important; /* Aumenta um pouco o espaço do quiz em telas pequenas */
+  }
+  
+  .quiz1-pelicano-mascote {
+    flex: 0 0 30% !important;
+  }
+}
+
+/* Ajustes para telas muito grandes */
+@media (min-height: 900px) {
+  .quiz1-quiz-section {
+    padding-top: clamp(30px, 5vh, 50px);
+  }
+}
+
+/* Ajustes para orientação landscape em mobile */
+@media (orientation: landscape) and (max-height: 500px) {
+  .quiz1-quiz-section {
+    flex: 0 0 75% !important;
+  }
+  
+  .quiz1-pelicano-mascote {
+    flex: 0 0 25% !important;
+  }
+  
+  .quiz1-options-wrapper {
+    gap: clamp(10px, 1.5vh, 20px) !important;
+  }
+}
+
+/* Garantir que as opções não fiquem muito pequenas */
+.quiz1-option img {
+  min-height: 60px;
+}
+
+/* Ajustes para o pelicano em diferentes tamanhos */
+.quiz1-pelicano-mascote img {
+  min-height: 100px;
+}
+
+@media (max-width: 480px) {
+  .quiz1-enunciado {
+    width: 95% !important;
+  }
+  
+  .quiz1-options-wrapper {
+    padding: 0 3% !important;
+  }
+}
+
+/* ===== ANIMAÇÕES DE SAÍDA QUANDO RESPOSTA CORRETA ===== */
+
+/* Enunciado saindo pela parte de cima */
+.quiz1-enunciado-exit {
+  animation: quiz1-exit-up 0.8s ease-in forwards !important;
+}
+
+@keyframes quiz1-exit-up {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-200vh);
+  }
+}
+
+/* Opções saindo pela parte de cima */
+.quiz1-option-exit {
+  animation: quiz1-option-exit-up 0.8s ease-in forwards !important;
+}
+
+@keyframes quiz1-option-exit-up {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-200vh);
+  }
+}
+
+/* Container do quiz saindo */
+.quiz1-quiz-exit {
+  pointer-events: none;
+  /* Não esconder imediatamente, deixar as animações individuais fazerem o trabalho */
+}
+
+/* ===== ANIMAÇÃO DE CENTRALIZAÇÃO DO PELICANO ===== */
+
+.quiz1-pelicano-center {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: 100% !important;
+  height: 100vh !important;
+  flex: none !important;
+  padding-bottom: 0 !important;
+  display: flex !important;
+  justify-content: center !important;
+  align-items: center !important;
+  animation: quiz1-pelicano-move-center 1.2s ease-out forwards !important;
+}
+
+@keyframes quiz1-pelicano-move-center {
+  from {
+    transform: translateY(32.5vh);
+    opacity: 1;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* ===== ANIMAÇÃO DO PELICANO COLORIDO ===== */
+
+.quiz1-pelicano-colored-hidden {
+  opacity: 0;
+  visibility: hidden;
+}
+
+.quiz1-pelicano-colored-fade-in {
+  opacity: 0;
+  visibility: visible;
+  animation: quiz1-pelicano-colored-fade 1.2s ease-in-out forwards;
+}
+
+@keyframes quiz1-pelicano-colored-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* ===== ANIMAÇÃO DO PELICANO TOP ===== */
+
+.quiz1-pelicano-top {
+  animation: quiz1-pelicano-top-slide-down 0.8s ease-out forwards;
+}
+
+@keyframes quiz1-pelicano-top-slide-down {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-100px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
