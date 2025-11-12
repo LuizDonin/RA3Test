@@ -28,7 +28,18 @@ git remote add origin https://github.com/SEU-USUARIO/SEU-REPOSITORIO.git
 git remote set-url origin https://github.com/SEU-USUARIO/SEU-REPOSITORIO.git
 ```
 
-### 3. Atualizar o Base Path (Opcional)
+### 3. Atualizar o package-lock.json (Recomendado)
+
+Como `templates/app-base` foi adicionado aos workspaces, é recomendado atualizar o `package-lock.json`:
+
+```bash
+# Na raiz do projeto
+npm install
+```
+
+Isso garantirá que o lockfile esteja sincronizado com as mudanças nos workspaces.
+
+### 4. Atualizar o Base Path (Opcional)
 
 O workflow já está configurado para usar automaticamente o nome do repositório. Se quiser usar um path customizado:
 
@@ -38,7 +49,7 @@ O workflow já está configurado para usar automaticamente o nome do repositóri
    VITE_BASE_PATH: /seu-path-customizado/
    ```
 
-### 4. Fazer Commit e Push
+### 5. Fazer Commit e Push
 
 ```bash
 # Adicionar os arquivos
@@ -51,7 +62,7 @@ git commit -m "Configurar deploy para GitHub Pages"
 git push -u origin main
 ```
 
-### 5. Habilitar GitHub Pages no Repositório
+### 6. Habilitar GitHub Pages no Repositório
 
 1. Acesse seu repositório no GitHub
 2. Vá em **Settings** (Configurações)
@@ -60,14 +71,14 @@ git push -u origin main
    - **Source**: `GitHub Actions`
 5. Salve as configurações
 
-### 6. Verificar o Deploy
+### 7. Verificar o Deploy
 
 1. Após fazer o push, vá para a aba **Actions** no seu repositório GitHub
 2. Você verá o workflow "Deploy to GitHub Pages" em execução
 3. Aguarde a conclusão (pode levar alguns minutos)
 4. Quando concluído, você verá um link para acessar o site
 
-### 7. Acessar a Aplicação
+### 8. Acessar a Aplicação
 
 A URL será no formato:
 ```

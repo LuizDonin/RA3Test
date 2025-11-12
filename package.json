@@ -5,7 +5,8 @@
   "description": "Monorepo para aplicações de Realidade Aumentada",
   "workspaces": [
     "apps/*",
-    "packages/*"
+    "packages/*",
+    "templates/*"
   ],
   "scripts": {
     "create-app": "node scripts/create-ar-app.js",
