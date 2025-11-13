@@ -337,32 +337,68 @@ export const ARScreen: React.FC<ARScreenProps> = ({
     pelicanoHandlersRef.current.handleKeyDown = handleKeyDown
     pelicanoHandlersRef.current.handleKeyUp = handleKeyUp
 
-    // --- Projeção do pelicano para tela/círculo de debug
+    // --- Projeção do pelicano para tela/círculo de debug usando a câmera real do A-Frame
     const projectPelicanoToScreen = (pelicanoPosition: {x:number, y:number, z:number}) => {
-      const cameraY = 1.6
-      const cameraPos = [0, cameraY, 0]
-      const fov = 80 * Math.PI / 180 // em radianos
-      const aspect = window.innerWidth / window.innerHeight
+      // Obter a câmera do A-Frame
+      const cameraEl = document.getElementById('camera') as any
+      if (!cameraEl) {
+        console.warn('Câmera não encontrada')
+        return null
+      }
 
-      const relX = pelicanoPosition.x - cameraPos[0]
-      const relY = pelicanoPosition.y - cameraPos[1]
-      const relZ = pelicanoPosition.z - cameraPos[2]
+      // Obter o objeto THREE.js da câmera
+      const threeCam = cameraEl.getObject3D && cameraEl.getObject3D('camera')
+      if (!threeCam || !(window as any).THREE) {
+        console.warn('THREE.js ou câmera THREE não disponível')
+        return null
+      }
 
-      if (relZ >= 0) return null
+      const THREE = (window as any).THREE
 
-      const projectionPlaneZ = 1 // unitária para facilitar escala
-      const scale = projectionPlaneZ / -relZ
-      const projectedX = relX * scale
-      const projectedY = relY * scale
+      // Obter a posição do pelicano no espaço 3D
+      const pelicanoEl = document.getElementById('pelicano-entity') as any
+      if (!pelicanoEl) {
+        return null
+      }
 
-      const screenHalfHeight = Math.tan(fov / 2) * projectionPlaneZ
-      const screenHalfWidth = screenHalfHeight * aspect
+      // Obter a posição do pelicano no espaço mundial (world space)
+      // Tentar obter o objeto 3D do pelicano (pode ser 'mesh' ou o objeto raiz)
+      let pelicanoObj3D = pelicanoEl.getObject3D && pelicanoEl.getObject3D('mesh')
+      if (!pelicanoObj3D) {
+        // Tentar obter o objeto raiz se não houver mesh
+        pelicanoObj3D = pelicanoEl.object3D || (pelicanoEl.getObject3D && pelicanoEl.getObject3D('object3d'))
+      }
 
-      const ndcX = projectedX / screenHalfWidth
-      const ndcY = -projectedY / screenHalfHeight // - pois tela y cresce para baixo
+      let worldPos: any
 
-      const screenX = ((ndcX + 1) / 2) * window.innerWidth
-      const screenY = ((ndcY + 1) / 2) * window.innerHeight
+      if (pelicanoObj3D && pelicanoObj3D.getWorldPosition) {
+        // Usar a posição mundial do objeto 3D (mais preciso, considera rotações e transformações)
+        worldPos = new THREE.Vector3()
+        pelicanoObj3D.getWorldPosition(worldPos)
+      } else {
+        // Fallback: usar a posição do atributo (menos preciso, mas funciona)
+        const posAttr = pelicanoEl.getAttribute('position')
+        if (posAttr && typeof posAttr === 'object' && 'x' in posAttr) {
+          worldPos = new THREE.Vector3(posAttr.x, posAttr.y, posAttr.z)
+        } else {
+          // Último fallback: usar a posição de referência
+          worldPos = new THREE.Vector3(pelicanoPosition.x, pelicanoPosition.y, pelicanoPosition.z)
+        }
+      }
+      
+      // Projetar no espaço da câmera usando THREE.js
+      const vector = worldPos.clone()
+      vector.project(threeCam)
+
+      // Converter de NDC (-1 a 1) para coordenadas de tela (0 a width/height)
+      const screenX = ((vector.x + 1) / 2) * window.innerWidth
+      const screenY = ((1 - vector.y) / 2) * window.innerHeight // Inverter Y
+
+      // Verificar se está na frente da câmera (z entre -1 e 1 em NDC significa que está visível)
+      // z < -1 significa muito longe, z > 1 significa atrás da câmera
+      if (vector.z > 1 || vector.z < -1) {
+        return null // Está atrás da câmera ou muito longe
+      }
 
       return { x: screenX, y: screenY }
     }
@@ -427,6 +463,7 @@ export const ARScreen: React.FC<ARScreenProps> = ({
         if (ctx) {
           ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height)
 
+          // Usar a posição atual do pelicano (pode ter mudado devido à rotação da câmera)
           const screenPt = projectPelicanoToScreen(pelicanoPositionRef.current)
 
           // Desenha o círculo central do binóculos
