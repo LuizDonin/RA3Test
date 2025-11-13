@@ -66,7 +66,7 @@ export const ARScreen: React.FC<ARScreenProps> = ({
   const getDebugCircleProps = useCallback(() => {
     if (binoculosRect) {
       return {
-        centerX: binoculosRect.left + binoculosRect.width / 4,
+        centerX: binoculosRect.left + binoculosRect.width / 2.8,
         centerY: binoculosRect.top + binoculosRect.height / 2,
         radius: DEBUG_CIRCLE_RADIUS_PX
       }
@@ -82,7 +82,7 @@ export const ARScreen: React.FC<ARScreenProps> = ({
   const getDebugCirclePropsRight = useCallback(() => {
     if (binoculosRect) {
       return {
-        centerX: binoculosRect.left + (3 * binoculosRect.width) / 4,
+        centerX: binoculosRect.left + (2.6 * binoculosRect.width) / 4,
         centerY: binoculosRect.top + binoculosRect.height / 2,
         radius: DEBUG_CIRCLE_RADIUS_PX_SECOND
       }
@@ -701,8 +701,8 @@ export const ARScreen: React.FC<ARScreenProps> = ({
             className="ar-binoculos-overlay"
             style={{
               transform: 'rotateZ(-90deg)',
-              maxWidth: '100vw',
-              maxHeight: '100vh',
+              maxWidth: '300vw',
+              maxHeight: '300vh',
               width: 'auto',
               height: 'auto',
               display: 'block',
