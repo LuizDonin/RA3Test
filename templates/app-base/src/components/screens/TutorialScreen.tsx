@@ -15,6 +15,7 @@ export const TutorialScreen: React.FC<TutorialScreenProps> = ({
   onNavigate
 }) => {
   const [isRequestingPermission, setIsRequestingPermission] = useState(false)
+  const [showBlackScreen, setShowBlackScreen] = useState(false)
 
   // Inicializar A-Frame quando a tela montar (caso não tenha sido inicializado na CoverScreen)
   useEffect(() => {
@@ -39,7 +40,10 @@ export const TutorialScreen: React.FC<TutorialScreenProps> = ({
   const handleNavigateToAR = async () => {
     if (isRequestingPermission) return
 
+    // Mostrar tela preta IMEDIATAMENTE antes de qualquer coisa
+    setShowBlackScreen(true)
     setIsRequestingPermission(true)
+    
     try {
       // Solicitar permissão de orientação do dispositivo antes de navegar
       console.log('Solicitando permissão de orientação do dispositivo...')
@@ -91,6 +95,22 @@ export const TutorialScreen: React.FC<TutorialScreenProps> = ({
   return (
     <>
       <LandscapeBlocker />
+      {/* Tela preta que aparece imediatamente ao clicar em "Começar" */}
+      {showBlackScreen && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100vw',
+            height: '100vh',
+            backgroundColor: '#000000',
+            zIndex: 999999999,
+            pointerEvents: 'none',
+            transition: 'opacity 0.1s ease-out'
+          }}
+        />
+      )}
       <div
         className="tutorial-screen"
         style={{

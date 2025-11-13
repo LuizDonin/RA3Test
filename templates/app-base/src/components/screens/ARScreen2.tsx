@@ -35,6 +35,7 @@ export const ARScreen2: React.FC<ARScreen2Props> = ({
   const [arLoading, setArLoading] = useState(true)
   const [showComecarButton, setShowComecarButton] = useState(false)
   const [isFadingIn, setIsFadingIn] = useState(false)
+  const [isPortrait, setIsPortrait] = useState(false)
 
   const videoRef = useRef<HTMLVideoElement | null>(null)
   const mediaStreamRef = useRef<MediaStream | null>(null)
@@ -137,6 +138,67 @@ export const ARScreen2: React.FC<ARScreen2Props> = ({
       return () => observer.disconnect()
     }
   }, [usarAFrame, arLoading, binoculosImgRef.current])
+
+  // Verificar orientação para mostrar/esconder tela preta
+  useEffect(() => {
+    const checkOrientation = () => {
+      const width = window.innerWidth
+      const height = window.innerHeight
+      const isCurrentlyPortrait = height > width
+      setIsPortrait(isCurrentlyPortrait)
+    }
+
+    // Verificar orientação inicial
+    checkOrientation()
+
+    // Listeners para mudanças de orientação
+    let resizeTimeout: NodeJS.Timeout
+    let orientationTimeout: NodeJS.Timeout
+
+    const handleResize = () => {
+      clearTimeout(resizeTimeout)
+      resizeTimeout = setTimeout(() => {
+        checkOrientation()
+      }, 50)
+    }
+
+    const handleOrientationChange = () => {
+      clearTimeout(orientationTimeout)
+      orientationTimeout = setTimeout(() => {
+        checkOrientation()
+      }, 100)
+    }
+
+    const handleScreenOrientationChange = () => {
+      clearTimeout(orientationTimeout)
+      orientationTimeout = setTimeout(() => {
+        checkOrientation()
+      }, 100)
+    }
+
+    window.addEventListener('resize', handleResize)
+    window.addEventListener('orientationchange', handleOrientationChange)
+    
+    if (window.screen && window.screen.orientation) {
+      window.screen.orientation.addEventListener('change', handleScreenOrientationChange)
+    }
+
+    // Verificar periodicamente
+    const intervalCheck = setInterval(() => {
+      checkOrientation()
+    }, 200)
+
+    return () => {
+      clearTimeout(resizeTimeout)
+      clearTimeout(orientationTimeout)
+      clearInterval(intervalCheck)
+      window.removeEventListener('resize', handleResize)
+      window.removeEventListener('orientationchange', handleOrientationChange)
+      if (window.screen && window.screen.orientation) {
+        window.screen.orientation.removeEventListener('change', handleScreenOrientationChange)
+      }
+    }
+  }, [])
 
   useEffect(() => {
     if (!usarVideo) {
@@ -709,6 +771,23 @@ export const ARScreen2: React.FC<ARScreen2Props> = ({
     <div className={`ar-game-screen ${isFadingIn ? 'ar-screen-fade-in' : 'ar-screen-fade-out'}`}>
       {/* Landscape Enforcer - força orientação landscape */}
       <LandscapeEnforcer enabled={true} />
+      
+      {/* Tela preta quando em portrait - cobre tudo incluindo a câmera */}
+      {isPortrait && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100vw',
+            height: '100vh',
+            backgroundColor: '#000000',
+            zIndex: 999999998,
+            pointerEvents: 'none',
+            transition: 'opacity 0.3s ease-out'
+          }}
+        />
+      )}
       
       {/* Loading overlay */}
       {arLoading && (
