@@ -693,7 +693,7 @@ export const ARScreen: React.FC<ARScreenProps> = ({
             justifyContent: 'center',
           }}
         >
-          {/*
+          {
           <img
             ref={binoculosImgRef}
             src={binoculosImgPath}
@@ -721,7 +721,7 @@ export const ARScreen: React.FC<ARScreenProps> = ({
               }
             }}
           />
-          */}
+          }
           {/* Canvas de overlay para círculos de debug */}
           <canvas
             ref={canvasRef}
