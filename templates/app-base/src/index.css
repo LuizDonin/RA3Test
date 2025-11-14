@@ -158,8 +158,7 @@ video[autoplay][playsinline][webkit-playsinline] {
   display: none !important;
   visibility: hidden !important;
   opacity: 0 !important;
-  transform: scaleX(-1) !important;
-  /* Espelhar vídeo */
+  /* Não espelhar vídeo - câmera frontal já vem espelhada naturalmente em dispositivos móveis */
 }
 
 /* Mostrar vídeo quando estiver na tela AR */
