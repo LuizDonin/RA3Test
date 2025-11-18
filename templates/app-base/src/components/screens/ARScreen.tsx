@@ -1,4 +1,4 @@
-import React, { useEffect, useLayoutEffect, useRef, useState, useCallback, useMemo } from 'react'
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { LandscapeBlocker } from '../LandscapeBlocker'
 import { useRA } from '../../contexts/RAContext'
 import type { ScreenType, TransitionType, TransitionDirection } from '../../types/screens'
@@ -118,18 +118,6 @@ export const ARScreen: React.FC<ARScreenProps> = ({
     }
   }, []) // Executa só uma vez ao montar
 
-  useLayoutEffect(() => {
-    // Procura o elemento de vídeo que o AR.js cria/reutiliza
-    const video = document.getElementById('arjs-video');
-    if (video) {
-      // Força invisibilidade imediata
-      video.style.opacity = '0';
-      video.style.display = 'none'; 
-      // Se quiser ser agressivo, pause o vídeo para limpar o buffer visual
-      // (video as HTMLVideoElement).pause();
-    }
-  }, []);
-
   // Se quiser que o fade-in aconteça toda vez que muda para 'initial',
   // troque para: }, [phase]) e abaixo: if (phase === 'initial') { ... }
 
@@ -142,69 +130,70 @@ export const ARScreen: React.FC<ARScreenProps> = ({
     async function setupCamera() {
       setArLoading(true)
       try {
-        let video = document.getElementById('arjs-video') as HTMLVideoElement
-        
-        // Se não existir, cria. Se existir, usa.
-        if (!video) {
-          video = document.createElement('video')
-          video.id = 'arjs-video'
-          video.setAttribute('playsinline', '')
-          video.setAttribute('autoplay', '')
-          video.muted = true
-          // CSS CRÍTICO PARA EVITAR FLASH
-          video.style.position = 'fixed'
-          video.style.top = '0'
-          video.style.left = '0'
-          video.style.width = '100vw'
-          video.style.height = '100vh'
-          video.style.objectFit = 'cover'
-          video.style.zIndex = '0'
-          document.body.appendChild(video)
+        const existingVideo = document.getElementById('arjs-video') as HTMLVideoElement
+        if (existingVideo && existingVideo.srcObject) {
+          existingVideo.style.display = 'block'
+          existingVideo.style.visibility = 'visible'
+          existingVideo.style.opacity = '0'
+          existingVideo.style.zIndex = '0'
+          existingVideo.style.transition = 'opacity 0.6s ease-in'
+          videoRef.current = existingVideo
+          mediaStreamRef.current = existingVideo.srcObject as MediaStream
+          setArLoading(false)
+          setTimeout(() => {
+            setIsFadingIn(true)
+            if (existingVideo) {
+              existingVideo.style.opacity = '1'
+            }
+          }, 100)
+          return
         }
 
-        // 1. Garante que está invisível antes de mexer
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+            facingMode: { ideal: 'environment' }
+          },
+          audio: false
+        })
+
+        const video = document.createElement('video')
+        video.id = 'arjs-video'
+        video.setAttribute('playsinline', '')
+        video.setAttribute('autoplay', '')
+        video.muted = true
+        video.style.position = 'fixed'
+        video.style.top = '0'
+        video.style.left = '0'
+        video.style.width = '100vw'
+        video.style.height = '100vh'
+        video.style.objectFit = 'cover'
+        video.style.zIndex = '0'
+        video.style.display = 'block'
+        video.style.visibility = 'visible'
         video.style.opacity = '0'
         video.style.transition = 'opacity 0.6s ease-in'
-        
-        // 2. Se já tiver stream, só reativa
-        if (video.srcObject) {
-           // Pequeno delay para garantir que o navegador processou o opacity: 0
-           requestAnimationFrame(() => {
-             video.style.display = 'block'
-             video.style.visibility = 'visible'
-             video.play().catch(() => {})
-           })
-        } else {
-          // 3. Se for novo stream
-          const stream = await navigator.mediaDevices.getUserMedia({
-            video: {
-              width: { ideal: 1280 },
-              height: { ideal: 720 },
-              facingMode: { ideal: 'environment' }
-            },
-            audio: false
-          })
-          video.srcObject = stream
-          video.style.display = 'block'
-          video.style.visibility = 'visible'
-          await video.play()
-        }
+        document.body.appendChild(video)
 
-        mediaStreamRef.current = video.srcObject as MediaStream
+        video.srcObject = stream
+        mediaStreamRef.current = stream
         videoRef.current = video
 
+        await video.play()
         setArLoading(false)
-        
-        // 4. Fade-in suave APÓS tudo estar pronto e carregado
         setTimeout(() => {
           setIsFadingIn(true)
-          if (video) video.style.opacity = '1'
-        }, 200) // Aumentei levemente para 200ms para garantir estabilidade
-
+          if (video) {
+            video.style.opacity = '1'
+          }
+        }, 100)
       } catch (err) {
         console.error('Erro ao configurar câmera:', err)
         setArLoading(false)
-        setTimeout(() => setIsFadingIn(true), 100)
+        setTimeout(() => {
+          setIsFadingIn(true)
+        }, 100)
       }
     }
 
@@ -432,13 +421,6 @@ export const ARScreen: React.FC<ARScreenProps> = ({
         zIndex: 1
       }}
     >
-      <style>{`
-        #arjs-video {
-          opacity: 0 !important;
-          transition: opacity 0.5s ease-in;
-        }
-        /* Quando quisermos mostrar, removemos o !important via JS inline style ou adicionamos uma classe .visible */
-      `}</style>
       <LandscapeBlocker />
       
       {/* Black overlay canvas (always in Canvas 2D, zIndex altíssimo) */}
