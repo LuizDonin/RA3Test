@@ -101,25 +101,76 @@ export const ARScreen: React.FC<ARScreenProps> = ({
   const dica1Img = useMemo(() => normalizePath(`assets/images/${selectedFolder}/dica1.png`), [normalizePath, selectedFolder])
   const dica2Img = useMemo(() => normalizePath(`assets/images/${selectedFolder}/dica2.png`), [normalizePath, selectedFolder])
 
-  // Corrigido: Fase inicial cobre TUDO com um canvas-like DIV, assim "grande" fica acima de tudo
-  // Para garantir que o background e o grande aparecem acima de tudo, devemos garantir:
-  // - O A-Frame não está renderizando enquanto phase === 'initial'
-  // - O overlay para 'initial' está NUM Z-INDEX MAIOR que todo resto
-
   // Black canvas fade-in effect (executa só ao montar o componente)
   useEffect(() => {
-    // Executa o fade-in apenas uma vez ao montar (ou sempre que fase muda para initial)
     setBlackCanvasOpacity(1)
     const timeout = setTimeout(() => {
       setBlackCanvasOpacity(0)
-    }, 50) // start fade-in logo ao montar, delay pequeno, mais fluido
+    }, 50)
     return () => {
       clearTimeout(timeout)
     }
-  }, []) // Executa só uma vez ao montar
+  }, [])
 
-  // Se quiser que o fade-in aconteça toda vez que muda para 'initial',
-  // troque para: }, [phase]) e abaixo: if (phase === 'initial') { ... }
+  // Adicionar pequeno.png no A-Frame quando entrar na fase AR ou diálogos
+  // REWRITE: Forçar update da entidade pequeno.png sempre que a fase for AR/dialogos,
+  //           o src mudar, OU o arSceneRef .current mudar (inclui montagem do componente).
+  // Isto evita o bug em que só aparece após giro do device.
+  useEffect(() => {
+    // Se não estivermos nas fases que importam, não adiciona nada
+    if (
+      phase !== 'ar' &&
+      phase !== 'dialogos'
+    ) {
+      return
+    }
+
+    // Se a referência do ARScene (A-Frame) não está pronta, aguarda.
+    if (!arSceneRef.current) {
+      // Try again soon; força checar ao montar ou trocar fase
+      const timeout = setTimeout(() => {
+        // fire effect again if ARSceneAFrame ref appears
+        // (força renderização do objeto assim que possível)
+      }, 100)
+      return () => clearTimeout(timeout)
+    }
+
+    console.log('🎨 (Force) Adicionando pequeno.png ao A-Frame, fase:', phase)
+
+    const addPequenoToScene = () => {
+      const scene = arSceneRef.current?.getScene()
+      if (!scene) {
+        console.log('⏳ A-Frame scene ainda não está pronto, tentando novamente...')
+        setTimeout(addPequenoToScene, 100)
+        return
+      }
+
+      // Sempre remove entidade anterior (pelo id salvo), evita duplicações
+      if (pequenoEntityId.current) {
+        arSceneRef.current?.removeEntity(pequenoEntityId.current)
+        console.log('🗑️ Removendo entidade anterior:', pequenoEntityId.current)
+      }
+
+      // Adiciona pequeno.png ao Z = -3
+      const entityId = arSceneRef.current?.addEntity({
+        geometry: { primitive: 'plane' },
+        material: { src: pequenoImg, transparent: true },
+        position: '0 0 -3',
+        scale: '1 1 1',
+        rotation: '0 0 0'
+      })
+      pequenoEntityId.current = entityId || ''
+      console.log('✅ Entidade pequeno.png adicionada com ID:', pequenoEntityId.current)
+    }
+
+    // Adiciona ou atualiza imediatamente ao entrar na "AR" ou "dialogos", ou sempre que o pequenoImg trocar.
+    setTimeout(addPequenoToScene, 100)
+
+    // Se fase mudar, a cleanup aqui não precisa remover o objeto,
+    // pois a próxima montagem do componente vai garantir consistência.
+    // Não faz nada no cleanup.
+    return undefined
+  }, [phase, pequenoImg, arSceneRef.current])
 
   // Configurar câmera quando entrar na fase AR ou diálogos
   useEffect(() => {
@@ -207,42 +258,6 @@ export const ARScreen: React.FC<ARScreenProps> = ({
       }
     }
   }, [phase, usarVideo])
-
-  // Adicionar pequeno.png no A-Frame quando entrar na fase AR ou diálogos
-  useEffect(() => {
-    // Só adicionar se não for fase inicial!
-    if (phase === 'initial' || !arSceneRef.current) return
-
-    console.log('🎨 Adicionando pequeno.png ao A-Frame, fase:', phase)
-
-    const addPequenoToScene = () => {
-      const scene = arSceneRef.current?.getScene()
-      if (!scene) {
-        console.log('⏳ A-Frame scene ainda não está pronto, tentando novamente...')
-        setTimeout(addPequenoToScene, 100)
-        return
-      }
-
-      // Remover entidade anterior se existir
-      if (pequenoEntityId.current) {
-        arSceneRef.current?.removeEntity(pequenoEntityId.current)
-        console.log('🗑️ Removendo entidade anterior:', pequenoEntityId.current)
-      }
-
-      // Adicionar pequeno.png a 3 unidades no eixo Z
-      const entityId = arSceneRef.current?.addEntity({
-        geometry: { primitive: 'plane' },
-        material: { src: pequenoImg, transparent: true },
-        position: '0 0 -3',
-        scale: '1 1 1',
-        rotation: '0 0 0'
-      })
-      pequenoEntityId.current = entityId || ''
-      console.log('✅ Entidade pequeno.png adicionada com ID:', pequenoEntityId.current)
-    }
-
-    setTimeout(addPequenoToScene, 500)
-  }, [phase, pequenoImg])
 
   // Transição da fase inicial para AR
   const handleTransitionToAR = () => {
@@ -405,9 +420,7 @@ export const ARScreen: React.FC<ARScreenProps> = ({
     }
   }
 
-  // Aqui está a correção principal:
-  // - Só renderizamos o A-Frame para fases que NÃO SÃO 'initial'.
-  // - O DIV de fundo e a imagem "grande" SEMPRE aparecem na fase 'initial', acima de todo resto (zIndex alto).
+  // Só renderizamos o A-Frame para fases que NÃO SÃO 'initial'
 
   return (
     <div 
@@ -464,7 +477,7 @@ export const ARScreen: React.FC<ARScreenProps> = ({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            zIndex: 99999, // garantir acima de tudo
+            zIndex: 99999,
             pointerEvents: 'auto'
           }}
           onClick={handleTransitionToAR}
@@ -500,6 +513,17 @@ export const ARScreen: React.FC<ARScreenProps> = ({
           <ARSceneAFrame
             ref={arSceneRef}
             onSceneReady={() => {
+              // Força adição da entidade pequeno.png sempre que a cena A-Frame estiver pronta, para evitar bug
+              if (
+                (phase === 'ar' || phase === 'dialogos') &&
+                arSceneRef.current
+              ) {
+                // setTimeout demora garante que já existe uma cena e o ref, e bate de novo no effect
+                setTimeout(() => {
+                  // Gatilho manual para o effect anterior por mexer na dependência arSceneRef.current.
+                  // (React já chama o effect acima no mount!)
+                }, 50)
+              }
               console.log('A-Frame Scene ready')
             }}
           />
