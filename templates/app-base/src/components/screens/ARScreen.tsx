@@ -218,20 +218,17 @@ export const ARScreen: React.FC<ARScreenProps> = ({
         return
       }
 
-      // Verificar se o scene está totalmente carregado
       const sceneEl = scene as any
-      if (!sceneEl.hasLoaded) {
-        console.log('⏳ A-Frame scene ainda não está totalmente carregado, tentando novamente...')
-        setTimeout(addPequenoToScene, 100)
-        return
-      }
-
-      // Garantir que a câmera existe no scene (já deve existir do globalInit)
-      const camera = sceneEl.querySelector('a-camera')
+      
+      // Garantir que a câmera existe
+      let camera = sceneEl.querySelector('a-camera')
       if (!camera) {
-        console.warn('⚠️ Câmera não encontrada no A-Frame scene')
-      } else {
-        console.log('📷 Câmera encontrada no A-Frame')
+        // Criar câmera se não existir
+        camera = document.createElement('a-camera')
+        camera.setAttribute('look-controls', 'enabled: true')
+        camera.setAttribute('wasd-controls', 'enabled: false')
+        sceneEl.appendChild(camera)
+        console.log('📷 Câmera criada no A-Frame')
       }
 
       // Remover entidade anterior se existir
@@ -240,10 +237,9 @@ export const ARScreen: React.FC<ARScreenProps> = ({
         console.log('🗑️ Removendo entidade anterior:', pequenoEntityId.current)
       }
 
-      // Adicionar pequeno.png a 3 unidades no eixo Z (relativo à câmera)
-      // Em orientação retrato, o objeto deve aparecer centralizado na tela
+      // Adicionar pequeno.png a 3 unidades no eixo Z (centrado no campo de visão)
       const entityId = arSceneRef.current?.addEntity({
-        geometry: { primitive: 'plane', width: 2, height: 2 },
+        geometry: { primitive: 'plane' },
         material: { src: pequenoImg, transparent: true },
         position: '0 0 -3',
         scale: '1 1 1',
@@ -252,78 +248,83 @@ export const ARScreen: React.FC<ARScreenProps> = ({
       pequenoEntityId.current = entityId || ''
       console.log('✅ Entidade pequeno.png adicionada com ID:', pequenoEntityId.current)
 
-      // Forçar resize/recalculo do A-Frame para garantir que o objeto apareça
-      // Isso é necessário porque o A-Frame precisa recalcular as posições baseado na orientação atual
+      // Forçar recálculo do A-Frame para garantir visibilidade
       setTimeout(() => {
-        // Disparar evento de resize para forçar recálculo
-        window.dispatchEvent(new Event('resize'))
+        const width = window.innerWidth
+        const height = window.innerHeight
         
-        // Também forçar update do renderer do A-Frame
+        // Forçar resize do renderer
         if (sceneEl.renderer) {
-          const width = window.innerWidth
-          const height = window.innerHeight
           sceneEl.renderer.setSize(width, height)
           sceneEl.renderer.setPixelRatio(window.devicePixelRatio)
+          console.log('🔄 Renderer redimensionado:', width, 'x', height)
         }
-        
-        // Garantir que a câmera está ativa e atualizada
+
+        // Atualizar projeção da câmera
         if (camera) {
           const cameraEl = camera as any
           if (cameraEl.components && cameraEl.components['camera']) {
             const cameraComponent = cameraEl.components['camera']
-            cameraComponent.updateProjectionMatrix()
-            // Forçar atualização da câmera
             if (cameraComponent.camera) {
-              cameraComponent.camera.aspect = window.innerWidth / window.innerHeight
+              cameraComponent.camera.aspect = width / height
               cameraComponent.camera.updateProjectionMatrix()
+              console.log('📷 Projeção da câmera atualizada, aspect:', width / height)
             }
           }
         }
-        
-        // Forçar render do scene
+
+        // Forçar render
         if (sceneEl.render) {
           sceneEl.render()
         }
-        
-        console.log('🔄 Forçado resize e recálculo do A-Frame (retrato)')
-      }, 300)
+
+        // Disparar evento de resize para forçar recálculo
+        window.dispatchEvent(new Event('resize'))
+        console.log('🔄 A-Frame recalculado e renderizado')
+      }, 200)
     }
 
-    // Aguardar um pouco mais para garantir que tudo está inicializado
-    // Incluindo a câmera e o sistema de renderização
-    setTimeout(addPequenoToScene, 800)
+    setTimeout(addPequenoToScene, 500)
 
-    // Adicionar listener para mudanças de orientação
-    const handleOrientationChange = () => {
+    // Listener para mudanças de orientação/resize
+    const handleResize = () => {
       if (pequenoEntityId.current && arSceneRef.current) {
         const scene = arSceneRef.current.getScene()
         if (scene) {
           const sceneEl = scene as any
-          // Forçar recálculo quando a orientação mudar
-          setTimeout(() => {
-            if (sceneEl.renderer) {
-              sceneEl.renderer.setSize(window.innerWidth, window.innerHeight)
+          const width = window.innerWidth
+          const height = window.innerHeight
+          
+          // Atualizar renderer
+          if (sceneEl.renderer) {
+            sceneEl.renderer.setSize(width, height)
+            sceneEl.renderer.setPixelRatio(window.devicePixelRatio)
+          }
+
+          // Atualizar câmera
+          const camera = sceneEl.querySelector('a-camera')
+          if (camera) {
+            const cameraEl = camera as any
+            if (cameraEl.components && cameraEl.components['camera'] && cameraEl.components['camera'].camera) {
+              cameraEl.components['camera'].camera.aspect = width / height
+              cameraEl.components['camera'].camera.updateProjectionMatrix()
             }
-            const camera = sceneEl.querySelector('a-camera')
-            if (camera) {
-              const cameraEl = camera as any
-              if (cameraEl.components && cameraEl.components['camera'] && cameraEl.components['camera'].camera) {
-                cameraEl.components['camera'].camera.aspect = window.innerWidth / window.innerHeight
-                cameraEl.components['camera'].camera.updateProjectionMatrix()
-              }
-            }
-            console.log('🔄 Recalculado A-Frame após mudança de orientação')
-          }, 100)
+          }
+
+          // Forçar render
+          if (sceneEl.render) {
+            sceneEl.render()
+          }
         }
       }
     }
 
-    window.addEventListener('orientationchange', handleOrientationChange)
-    window.addEventListener('resize', handleOrientationChange)
+    window.addEventListener('resize', handleResize)
+    window.addEventListener('orientationchange', handleResize)
 
     return () => {
-      window.removeEventListener('orientationchange', handleOrientationChange)
-      window.removeEventListener('resize', handleOrientationChange)
+      window.removeEventListener('resize', handleResize)
+      window.removeEventListener('orientationchange', handleResize)
     }
   }, [phase, pequenoImg])
 

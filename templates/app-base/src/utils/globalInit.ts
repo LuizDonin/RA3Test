@@ -260,12 +260,8 @@ async function initializeAFrameScene(): Promise<void> {
     scene.setAttribute('background', 'transparent: true')
     scene.setAttribute('stats', 'false')
 
-    // Criar câmera básica para o A-Frame funcionar corretamente
-    const camera = document.createElement('a-camera')
-    camera.setAttribute('look-controls', 'enabled: false')
-    camera.setAttribute('wasd-controls', 'enabled: false')
-    camera.setAttribute('position', '0 1.6 0')
-    scene.appendChild(camera)
+    // Apenas criar a estrutura mínima para inicializar o A-Frame
+    // Skybox, câmera, luzes e objetos serão adicionados pelo ARScreen
 
     // Adicionar ao body (escondido inicialmente)
     scene.style.position = 'fixed'
