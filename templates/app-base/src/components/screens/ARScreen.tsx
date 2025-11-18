@@ -103,74 +103,18 @@ export const ARScreen: React.FC<ARScreenProps> = ({
 
   // Black canvas fade-in effect (executa só ao montar o componente)
   useEffect(() => {
+    // Executa o fade-in apenas uma vez ao montar (ou sempre que fase muda para initial)
     setBlackCanvasOpacity(1)
     const timeout = setTimeout(() => {
       setBlackCanvasOpacity(0)
-    }, 50)
+    }, 50) // start fade-in logo ao montar, delay pequeno, mais fluido
     return () => {
       clearTimeout(timeout)
     }
-  }, [])
+  }, []) // Executa só uma vez ao montar
 
-  // Adicionar pequeno.png no A-Frame quando entrar na fase AR ou diálogos
-  // REWRITE: Forçar update da entidade pequeno.png sempre que a fase for AR/dialogos,
-  //           o src mudar, OU o arSceneRef .current mudar (inclui montagem do componente).
-  // Isto evita o bug em que só aparece após giro do device.
-  useEffect(() => {
-    // Se não estivermos nas fases que importam, não adiciona nada
-    if (
-      phase !== 'ar' &&
-      phase !== 'dialogos'
-    ) {
-      return
-    }
-
-    // Se a referência do ARScene (A-Frame) não está pronta, aguarda.
-    if (!arSceneRef.current) {
-      // Try again soon; força checar ao montar ou trocar fase
-      const timeout = setTimeout(() => {
-        // fire effect again if ARSceneAFrame ref appears
-        // (força renderização do objeto assim que possível)
-      }, 100)
-      return () => clearTimeout(timeout)
-    }
-
-    console.log('🎨 (Force) Adicionando pequeno.png ao A-Frame, fase:', phase)
-
-    const addPequenoToScene = () => {
-      const scene = arSceneRef.current?.getScene()
-      if (!scene) {
-        console.log('⏳ A-Frame scene ainda não está pronto, tentando novamente...')
-        setTimeout(addPequenoToScene, 100)
-        return
-      }
-
-      // Sempre remove entidade anterior (pelo id salvo), evita duplicações
-      if (pequenoEntityId.current) {
-        arSceneRef.current?.removeEntity(pequenoEntityId.current)
-        console.log('🗑️ Removendo entidade anterior:', pequenoEntityId.current)
-      }
-
-      // Adiciona pequeno.png ao Z = -3
-      const entityId = arSceneRef.current?.addEntity({
-        geometry: { primitive: 'plane' },
-        material: { src: pequenoImg, transparent: true },
-        position: '0 0 -3',
-        scale: '1 1 1',
-        rotation: '0 0 0'
-      })
-      pequenoEntityId.current = entityId || ''
-      console.log('✅ Entidade pequeno.png adicionada com ID:', pequenoEntityId.current)
-    }
-
-    // Adiciona ou atualiza imediatamente ao entrar na "AR" ou "dialogos", ou sempre que o pequenoImg trocar.
-    setTimeout(addPequenoToScene, 100)
-
-    // Se fase mudar, a cleanup aqui não precisa remover o objeto,
-    // pois a próxima montagem do componente vai garantir consistência.
-    // Não faz nada no cleanup.
-    return undefined
-  }, [phase, pequenoImg, arSceneRef.current])
+  // Se quiser que o fade-in aconteça toda vez que muda para 'initial',
+  // troque para: }, [phase]) e abaixo: if (phase === 'initial') { ... }
 
   // Configurar câmera quando entrar na fase AR ou diálogos
   useEffect(() => {
@@ -258,6 +202,130 @@ export const ARScreen: React.FC<ARScreenProps> = ({
       }
     }
   }, [phase, usarVideo])
+
+  // Adicionar pequeno.png no A-Frame quando entrar na fase AR ou diálogos
+  useEffect(() => {
+    // Só adicionar se não for fase inicial!
+    if (phase === 'initial' || !arSceneRef.current) return
+
+    console.log('🎨 Adicionando pequeno.png ao A-Frame, fase:', phase)
+
+    const addPequenoToScene = () => {
+      const scene = arSceneRef.current?.getScene()
+      if (!scene) {
+        console.log('⏳ A-Frame scene ainda não está pronto, tentando novamente...')
+        setTimeout(addPequenoToScene, 100)
+        return
+      }
+
+      // Verificar se o scene está totalmente carregado
+      const sceneEl = scene as any
+      if (!sceneEl.hasLoaded) {
+        console.log('⏳ A-Frame scene ainda não está totalmente carregado, tentando novamente...')
+        setTimeout(addPequenoToScene, 100)
+        return
+      }
+
+      // Garantir que a câmera existe no scene (já deve existir do globalInit)
+      const camera = sceneEl.querySelector('a-camera')
+      if (!camera) {
+        console.warn('⚠️ Câmera não encontrada no A-Frame scene')
+      } else {
+        console.log('📷 Câmera encontrada no A-Frame')
+      }
+
+      // Remover entidade anterior se existir
+      if (pequenoEntityId.current) {
+        arSceneRef.current?.removeEntity(pequenoEntityId.current)
+        console.log('🗑️ Removendo entidade anterior:', pequenoEntityId.current)
+      }
+
+      // Adicionar pequeno.png a 3 unidades no eixo Z (relativo à câmera)
+      // Em orientação retrato, o objeto deve aparecer centralizado na tela
+      const entityId = arSceneRef.current?.addEntity({
+        geometry: { primitive: 'plane', width: 2, height: 2 },
+        material: { src: pequenoImg, transparent: true },
+        position: '0 0 -3',
+        scale: '1 1 1',
+        rotation: '0 0 0'
+      })
+      pequenoEntityId.current = entityId || ''
+      console.log('✅ Entidade pequeno.png adicionada com ID:', pequenoEntityId.current)
+
+      // Forçar resize/recalculo do A-Frame para garantir que o objeto apareça
+      // Isso é necessário porque o A-Frame precisa recalcular as posições baseado na orientação atual
+      setTimeout(() => {
+        // Disparar evento de resize para forçar recálculo
+        window.dispatchEvent(new Event('resize'))
+        
+        // Também forçar update do renderer do A-Frame
+        if (sceneEl.renderer) {
+          const width = window.innerWidth
+          const height = window.innerHeight
+          sceneEl.renderer.setSize(width, height)
+          sceneEl.renderer.setPixelRatio(window.devicePixelRatio)
+        }
+        
+        // Garantir que a câmera está ativa e atualizada
+        if (camera) {
+          const cameraEl = camera as any
+          if (cameraEl.components && cameraEl.components['camera']) {
+            const cameraComponent = cameraEl.components['camera']
+            cameraComponent.updateProjectionMatrix()
+            // Forçar atualização da câmera
+            if (cameraComponent.camera) {
+              cameraComponent.camera.aspect = window.innerWidth / window.innerHeight
+              cameraComponent.camera.updateProjectionMatrix()
+            }
+          }
+        }
+        
+        // Forçar render do scene
+        if (sceneEl.render) {
+          sceneEl.render()
+        }
+        
+        console.log('🔄 Forçado resize e recálculo do A-Frame (retrato)')
+      }, 300)
+    }
+
+    // Aguardar um pouco mais para garantir que tudo está inicializado
+    // Incluindo a câmera e o sistema de renderização
+    setTimeout(addPequenoToScene, 800)
+
+    // Adicionar listener para mudanças de orientação
+    const handleOrientationChange = () => {
+      if (pequenoEntityId.current && arSceneRef.current) {
+        const scene = arSceneRef.current.getScene()
+        if (scene) {
+          const sceneEl = scene as any
+          // Forçar recálculo quando a orientação mudar
+          setTimeout(() => {
+            if (sceneEl.renderer) {
+              sceneEl.renderer.setSize(window.innerWidth, window.innerHeight)
+            }
+            const camera = sceneEl.querySelector('a-camera')
+            if (camera) {
+              const cameraEl = camera as any
+              if (cameraEl.components && cameraEl.components['camera'] && cameraEl.components['camera'].camera) {
+                cameraEl.components['camera'].camera.aspect = window.innerWidth / window.innerHeight
+                cameraEl.components['camera'].camera.updateProjectionMatrix()
+              }
+            }
+            console.log('🔄 Recalculado A-Frame após mudança de orientação')
+          }, 100)
+        }
+      }
+    }
+
+    window.addEventListener('orientationchange', handleOrientationChange)
+    window.addEventListener('resize', handleOrientationChange)
+
+    return () => {
+      window.removeEventListener('orientationchange', handleOrientationChange)
+      window.removeEventListener('resize', handleOrientationChange)
+    }
+  }, [phase, pequenoImg])
 
   // Transição da fase inicial para AR
   const handleTransitionToAR = () => {
@@ -420,7 +488,9 @@ export const ARScreen: React.FC<ARScreenProps> = ({
     }
   }
 
-  // Só renderizamos o A-Frame para fases que NÃO SÃO 'initial'
+  // Aqui está a correção principal:
+  // - Só renderizamos o A-Frame para fases que NÃO SÃO 'initial'.
+  // - O DIV de fundo e a imagem "grande" SEMPRE aparecem na fase 'initial', acima de todo resto (zIndex alto).
 
   return (
     <div 
@@ -477,7 +547,7 @@ export const ARScreen: React.FC<ARScreenProps> = ({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            zIndex: 99999,
+            zIndex: 99999, // garantir acima de tudo
             pointerEvents: 'auto'
           }}
           onClick={handleTransitionToAR}
@@ -513,17 +583,6 @@ export const ARScreen: React.FC<ARScreenProps> = ({
           <ARSceneAFrame
             ref={arSceneRef}
             onSceneReady={() => {
-              // Força adição da entidade pequeno.png sempre que a cena A-Frame estiver pronta, para evitar bug
-              if (
-                (phase === 'ar' || phase === 'dialogos') &&
-                arSceneRef.current
-              ) {
-                // setTimeout demora garante que já existe uma cena e o ref, e bate de novo no effect
-                setTimeout(() => {
-                  // Gatilho manual para o effect anterior por mexer na dependência arSceneRef.current.
-                  // (React já chama o effect acima no mount!)
-                }, 50)
-              }
               console.log('A-Frame Scene ready')
             }}
           />
