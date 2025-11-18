@@ -34,9 +34,11 @@ export const ARScreen: React.FC<ARScreenProps> = ({
   // Estados principais
   const [phase, setPhase] = useState<Phase>('initial')
   const [arLoading, setArLoading] = useState(false)
-  // O overlay preto inicia em 1 (opaco) e faz fade para 0 (transparente) no início
   const [blackCanvasOpacity, setBlackCanvasOpacity] = useState(1)
   const [isFadingIn, setIsFadingIn] = useState(true)
+
+  // Novo: controla o fade da splash inicial
+  const [initialFadeOpacity, setInitialFadeOpacity] = useState(1)
 
   // Debug: log da fase atual
   useEffect(() => {
@@ -103,20 +105,66 @@ export const ARScreen: React.FC<ARScreenProps> = ({
 
   // Black canvas fade-in effect (executa só ao montar o componente)
   useEffect(() => {
-    // Executa o fade-in apenas uma vez ao montar (ou sempre que fase muda para initial)
     setBlackCanvasOpacity(1)
     const timeout = setTimeout(() => {
       setBlackCanvasOpacity(0)
-    }, 50) // start fade-in logo ao montar, delay pequeno, mais fluido
+    }, 50)
     return () => {
       clearTimeout(timeout)
     }
-  }, []) // Executa só uma vez ao montar
+  }, [])
 
-  // Se quiser que o fade-in aconteça toda vez que muda para 'initial',
-  // troque para: }, [phase]) e abaixo: if (phase === 'initial') { ... }
+  // Implementa fade automático na splash inicial (bg + grande.png)
+  useEffect(() => {
+    if (phase !== 'initial') return
+    setInitialFadeOpacity(1)
+    // Espera um instante e começa fade automático
+    const delay = 550 // espera pelo fade do canvas preto (1100ms/2, já que fade do canvas é 1.1s)
+    const fakeSplashDuration = 1000 // quanto tempo fica splash visível antes do fade (pode ajustar)
+    let fadeTimeout: NodeJS.Timeout
+    let phaseTimeout: NodeJS.Timeout
+    let frame: number
 
-  // Configurar câmera quando entrar na fase AR ou diálogos
+    const startFade = () => {
+      const fadeDuration = 900 // ms: ajuste para suavidade desejada
+      const start = Date.now()
+      function step() {
+        const elapsed = Date.now() - start
+        const t = Math.min(1, elapsed / fadeDuration)
+        setInitialFadeOpacity(1 - t)
+        if (t < 1) {
+          frame = requestAnimationFrame(step)
+        } else {
+          setInitialFadeOpacity(0)
+          // Após fade, avança para diálogos/AR
+          phaseTimeout = setTimeout(() => {
+            handleTransitionToAR_auto()
+          }, 100) // pequeno delay para garantir opacidade=0
+        }
+      }
+      frame = requestAnimationFrame(step)
+    }
+
+    fadeTimeout = setTimeout(() => {
+      startFade()
+    }, fakeSplashDuration + delay)
+
+    return () => {
+      if (fadeTimeout) clearTimeout(fadeTimeout)
+      if (phaseTimeout) clearTimeout(phaseTimeout)
+      if (frame) cancelAnimationFrame(frame)
+    }
+    // eslint-disable-next-line
+  }, [phase, grandeImg, bgClaroImg])
+
+  // Versão "auto" do handleTransitionToAR (ignora playClickSound)
+  const handleTransitionToAR_auto = () => {
+    setPhase('dialogos')
+    setDialogIndex(1)
+    setShowBtVoltar(false)
+  }
+
+  // AR scene/camera boot, etc (mesmo do original)
   useEffect(() => {
     if ((phase !== 'ar' && phase !== 'dialogos') || !usarVideo) {
       return
@@ -203,64 +251,48 @@ export const ARScreen: React.FC<ARScreenProps> = ({
     }
   }, [phase, usarVideo])
 
-  // Adicionar pequeno.png no A-Frame quando entrar na fase AR ou diálogos
   useEffect(() => {
-    // Só adicionar se não for fase inicial!
     if (phase === 'initial' || !arSceneRef.current) return
-
-    console.log('🎨 Adicionando pequeno.png ao A-Frame, fase:', phase)
 
     const addPequenoToScene = () => {
       const scene = arSceneRef.current?.getScene()
       if (!scene) {
-        console.log('⏳ A-Frame scene ainda não está pronto, tentando novamente...')
         setTimeout(addPequenoToScene, 100)
         return
       }
 
       const sceneEl = scene as any
-      
-      // Garantir que a câmera existe
+
       let camera = sceneEl.querySelector('a-camera')
       if (!camera) {
-        // Criar câmera se não existir
         camera = document.createElement('a-camera')
         camera.setAttribute('look-controls', 'enabled: true')
         camera.setAttribute('wasd-controls', 'enabled: false')
         sceneEl.appendChild(camera)
-        console.log('📷 Câmera criada no A-Frame')
       }
 
-      // Remover entidade anterior se existir
       if (pequenoEntityId.current) {
         arSceneRef.current?.removeEntity(pequenoEntityId.current)
-        console.log('🗑️ Removendo entidade anterior:', pequenoEntityId.current)
       }
 
-      // Adicionar pequeno.png a 3 unidades no eixo Z (centrado no campo de visão)
       const entityId = arSceneRef.current?.addEntity({
         geometry: { primitive: 'plane' },
         material: { src: pequenoImg, transparent: true },
-        position: '0 0 -3',
+        position: '0 0.65 -2',
         scale: '1 1 1',
         rotation: '0 0 0'
       })
       pequenoEntityId.current = entityId || ''
-      console.log('✅ Entidade pequeno.png adicionada com ID:', pequenoEntityId.current)
 
-      // Forçar recálculo do A-Frame para garantir visibilidade
       setTimeout(() => {
         const width = window.innerWidth
         const height = window.innerHeight
-        
-        // Forçar resize do renderer
+
         if (sceneEl.renderer) {
           sceneEl.renderer.setSize(width, height)
           sceneEl.renderer.setPixelRatio(window.devicePixelRatio)
-          console.log('🔄 Renderer redimensionado:', width, 'x', height)
         }
 
-        // Atualizar projeção da câmera
         if (camera) {
           const cameraEl = camera as any
           if (cameraEl.components && cameraEl.components['camera']) {
@@ -268,25 +300,18 @@ export const ARScreen: React.FC<ARScreenProps> = ({
             if (cameraComponent.camera) {
               cameraComponent.camera.aspect = width / height
               cameraComponent.camera.updateProjectionMatrix()
-              console.log('📷 Projeção da câmera atualizada, aspect:', width / height)
             }
           }
         }
-
-        // Forçar render
         if (sceneEl.render) {
           sceneEl.render()
         }
-
-        // Disparar evento de resize para forçar recálculo
         window.dispatchEvent(new Event('resize'))
-        console.log('🔄 A-Frame recalculado e renderizado')
       }, 200)
     }
 
     setTimeout(addPequenoToScene, 500)
 
-    // Listener para mudanças de orientação/resize
     const handleResize = () => {
       if (pequenoEntityId.current && arSceneRef.current) {
         const scene = arSceneRef.current.getScene()
@@ -294,14 +319,12 @@ export const ARScreen: React.FC<ARScreenProps> = ({
           const sceneEl = scene as any
           const width = window.innerWidth
           const height = window.innerHeight
-          
-          // Atualizar renderer
+
           if (sceneEl.renderer) {
             sceneEl.renderer.setSize(width, height)
             sceneEl.renderer.setPixelRatio(window.devicePixelRatio)
           }
 
-          // Atualizar câmera
           const camera = sceneEl.querySelector('a-camera')
           if (camera) {
             const cameraEl = camera as any
@@ -311,7 +334,6 @@ export const ARScreen: React.FC<ARScreenProps> = ({
             }
           }
 
-          // Forçar render
           if (sceneEl.render) {
             sceneEl.render()
           }
@@ -328,17 +350,15 @@ export const ARScreen: React.FC<ARScreenProps> = ({
     }
   }, [phase, pequenoImg])
 
-  // Transição da fase inicial para AR
+  // Troca de fase (manual - pelo clique, mas não é mais usada na splash)
   const handleTransitionToAR = () => {
     playClickSound()
-    console.log('🔄 Transicionando para fase AR/diálogos')
     setPhase('dialogos')
     setDialogIndex(1)
     setShowBtVoltar(false)
   }
 
-  // --- Funções e renderização continuam igual ---
-
+  // Handlers
   const handleAvancarDialogo = () => {
     playClickSound()
     if (dialogIndex === 1) {
@@ -441,7 +461,8 @@ export const ARScreen: React.FC<ARScreenProps> = ({
     }
   }
 
-  const getDialogoImg = () => {
+  // Sempre retorna a imagem do topo da cena atual
+  const getTopImage = () => {
     if (phase === 'historia') {
       if (historiaIndex === 1) return historia1Img
       if (historiaIndex === 2) return historia2Img
@@ -460,12 +481,82 @@ export const ARScreen: React.FC<ARScreenProps> = ({
     return dialogo1Img
   }
 
-  const getAvancarButton = () => {
-    if (phase === 'historia' && historiaIndex === 3) {
-      return btConcluirImg
-    }
-    return btAvancarImg
-  }
+  // Botões Avançar/Voltar usam as imagens btAvancarImg, btVoltarImg direto no <img> (tamanhos nativos)
+  const renderVoltarButton = (onClick: () => void) => (
+    <button
+    onClick={onClick}
+    style={{
+      position: 'absolute',
+      left: 0,
+      bottom: '-55px',
+      background: 'none',
+      border: 'none',
+      padding: 0,
+      margin: 0,
+      cursor: 'pointer',
+      userSelect: 'none',
+      display: 'block',
+      opacity: 1,
+      visibility: 'visible',
+      zIndex: 1002
+    }}
+    draggable={false}
+    aria-label="Voltar"
+    >
+      <img
+        src={btVoltarImg}
+        style={{
+          objectFit: 'contain',
+          pointerEvents: 'none',
+          userSelect: 'none',
+          display: 'block'
+          // Removido width/height para usar tamanho nativo da imagem
+        }}
+        alt="Voltar"
+        draggable={false}
+      />
+    </button>
+  )
+
+  const renderAvancarButton = (onClick: () => void) => (
+    <button
+      onClick={onClick}
+      style={{
+        position: 'absolute',
+        right: 0,
+        bottom: '-65px',
+        background: 'none',
+        border: 'none',
+        padding: 0,
+        margin: 0,
+        cursor: 'pointer',
+        userSelect: 'none',
+        display: 'block',
+        opacity: 1,
+        visibility: 'visible',
+        zIndex: 1002
+      }}
+      draggable={false}
+      aria-label="Avançar"
+    >
+      <img
+        src={
+          phase === 'historia' && historiaIndex === 3
+            ? btConcluirImg
+            : btAvancarImg
+        }
+        style={{
+          objectFit: 'contain',
+          pointerEvents: 'none',
+          userSelect: 'none',
+          display: 'block'
+          // Removido width/height para usar tamanho nativo da imagem
+        }}
+        alt="Avançar"
+        draggable={false}
+      />
+    </button>
+  )
 
   const handleAvancar = () => {
     if (phase === 'historia' && historiaIndex === 3) {
@@ -476,6 +567,8 @@ export const ARScreen: React.FC<ARScreenProps> = ({
       handleAvancarQuiz()
     } else if (showDicas) {
       handleAvancarDica()
+    } else if (phase === 'dialogos') {
+      handleAvancarDialogo()
     } else {
       handleAvancarDialogo()
     }
@@ -488,10 +581,6 @@ export const ARScreen: React.FC<ARScreenProps> = ({
       handleVoltarDialogo()
     }
   }
-
-  // Aqui está a correção principal:
-  // - Só renderizamos o A-Frame para fases que NÃO SÃO 'initial'.
-  // - O DIV de fundo e a imagem "grande" SEMPRE aparecem na fase 'initial', acima de todo resto (zIndex alto).
 
   return (
     <div 
@@ -506,8 +595,7 @@ export const ARScreen: React.FC<ARScreenProps> = ({
       }}
     >
       <LandscapeBlocker />
-      
-      {/* Black overlay canvas (always in Canvas 2D, zIndex altíssimo) */}
+      {/* Black overlay canvas */}
       <div
         className="ar-black-fade-in"
         style={{
@@ -524,20 +612,10 @@ export const ARScreen: React.FC<ARScreenProps> = ({
         }}
       />
 
-      {/* Loading overlay */}
-      {arLoading && (
-        <div className="ar-loading-overlay">
-          <div className="ar-loading-content">
-            <div className="ar-loading-spinner"></div>
-            <p className="ar-loading-text">Preparando AR...</p>
-          </div>
-        </div>
-      )}
-
-      {/* Fase inicial: Mostra canvas-like DIV acima de todo o resto */}
+      {/* Fade inicial do bg + grande.png */}
       {phase === 'initial' && (
         <div
-          className="ar-initial-phase"
+          className="ar-initial-fade"
           style={{
             position: 'fixed',
             top: 0,
@@ -548,27 +626,28 @@ export const ARScreen: React.FC<ARScreenProps> = ({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            zIndex: 99999, // garantir acima de tudo
-            pointerEvents: 'auto'
+            zIndex: 99999,
+            pointerEvents: 'none', // não clica mais; autom.
+            opacity: initialFadeOpacity,
+            transition: 'opacity 850ms cubic-bezier(.39,.58,.57,1)'
           }}
-          onClick={handleTransitionToAR}
         >
           <img
             src={grandeImg}
             alt="Grande"
             style={{
-              cursor: 'pointer',
               userSelect: 'none',
               maxWidth: '90vw',
               maxHeight: '90vh',
-              zIndex: 100000
+              zIndex: 100000,
+              pointerEvents: 'none'
             }}
             draggable={false}
           />
         </div>
       )}
 
-      {/* Fase AR: A-Frame Scene (mostrar quando NÃO estiver na fase initial) */}
+      {/* Fase AR: A-Frame Scene */}
       {(phase !== 'initial') && (
         <div
           style={{
@@ -611,72 +690,33 @@ export const ARScreen: React.FC<ARScreenProps> = ({
                 top: '10vh',
                 left: '50%',
                 transform: 'translateX(-50%)',
-                pointerEvents: 'auto'
+                pointerEvents: 'auto',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: '20px',
+                zIndex: 1001
               }}
             >
-              <img
-                src={getDialogoImg()}
-                alt="Diálogo"
-                style={{
-                  userSelect: 'none',
-                  display: 'block'
-                }}
-                draggable={false}
-              />
-              
-              {/* Botão Avançar */}
-              <div
-                style={{
-                  position: 'absolute',
-                  bottom: '-60px',
-                  right: '20px',
-                  pointerEvents: 'auto'
-                }}
-              >
-                <button
-                  onClick={handleAvancar}
+              <div style={{ position: 'relative', display: 'inline-block' }}>
+                <img
+                  src={getTopImage()}
+                  alt="Diálogo"
                   style={{
-                    backgroundImage: `url("${getAvancarButton()}")`,
-                    backgroundRepeat: 'no-repeat',
-                    backgroundPosition: 'center',
-                    border: 'none',
-                    backgroundColor: 'transparent',
-                    cursor: 'pointer',
                     userSelect: 'none',
-                    padding: 0,
-                    margin: 0
+                    display: 'block'
                   }}
                   draggable={false}
                 />
+                {/* Botão Avançar sempre à direita do topo da imagem, a 10px da borda inferior */}
+                {renderAvancarButton(handleAvancar)}
+                {/* Botão Voltar sempre sobreposto à esquerda da imagem */}
+                {showBtVoltar && (
+                  <div style={{ position: 'absolute', left: 0, bottom: '-10px' }}>
+                    {renderVoltarButton(handleVoltar)}
+                  </div>
+                )}
               </div>
-
-              {/* Botão Voltar */}
-              {showBtVoltar && (
-                <div
-                  style={{
-                    position: 'absolute',
-                    bottom: '-60px',
-                    left: '20px',
-                    pointerEvents: 'auto'
-                  }}
-                >
-                  <button
-                    onClick={handleVoltar}
-                    style={{
-                      backgroundImage: `url("${btVoltarImg}")`,
-                      backgroundRepeat: 'no-repeat',
-                      backgroundPosition: 'center',
-                      border: 'none',
-                      backgroundColor: 'transparent',
-                      cursor: 'pointer',
-                      userSelect: 'none',
-                      padding: 0,
-                      margin: 0
-                    }}
-                    draggable={false}
-                  />
-                </div>
-              )}
             </div>
           )}
 
@@ -685,48 +725,93 @@ export const ARScreen: React.FC<ARScreenProps> = ({
             <div
               style={{
                 position: 'absolute',
-                top: '5vh',
-                left: '50%',
-                transform: 'translateX(-50%)',
+                top: 0,
+                left: 0,
+                width: '100vw',
+                height: '100vh',
                 display: 'flex',
-                flexDirection: 'column',
-                gap: '20px',
-                alignItems: 'center',
-                pointerEvents: 'auto'
+                justifyContent: 'center',
+                alignItems: 'flex-start',
+                pointerEvents: 'auto',
+                zIndex: 1001
               }}
             >
-              <button
-                onClick={handleHistoria}
+              <div
                 style={{
-                  backgroundImage: `url("${btHistoriaImg}")`,
-                  backgroundRepeat: 'no-repeat',
-                  backgroundPosition: 'center',
-                  border: 'none',
-                  backgroundColor: 'transparent',
-                  cursor: 'pointer',
-                  userSelect: 'none',
-                  padding: 0,
-                  margin: 0,
-                  display: 'block'
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '32px',
+                  alignItems: 'center',
+                  marginTop: '32px'
                 }}
-                draggable={false}
-              />
-              <button
-                onClick={handleQuiz}
-                style={{
-                  backgroundImage: `url("${btQuizImg}")`,
-                  backgroundRepeat: 'no-repeat',
-                  backgroundPosition: 'center',
-                  border: 'none',
-                  backgroundColor: 'transparent',
-                  cursor: 'pointer',
-                  userSelect: 'none',
-                  padding: 0,
-                  margin: 0,
-                  display: 'block'
-                }}
-                draggable={false}
-              />
+              >
+                <button
+                  onClick={() => {
+                    handleHistoria()
+                  }}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    padding: 0,
+                    margin: 0,
+                    cursor: 'pointer',
+                    userSelect: 'none',
+                    display: 'block',
+                    opacity: 1,
+                    visibility: 'visible',
+                    zIndex: 1002
+                  }}
+                  draggable={false}
+                >
+                  <img
+                    src={btHistoriaImg}
+                    alt="História"
+                    style={{
+                      display: 'block',
+                      width: 'auto',
+                      height: 'auto',
+                      maxWidth: '100%',
+                      maxHeight: '100%',
+                      pointerEvents: 'none',
+                      userSelect: 'none'
+                    }}
+                    draggable={false}
+                  />
+                </button>
+                <button
+                  onClick={() => {
+                    handleQuiz()
+                  }}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    padding: 0,
+                    margin: 0,
+                    cursor: 'pointer',
+                    userSelect: 'none',
+                    display: 'block',
+                    opacity: 1,
+                    visibility: 'visible',
+                    zIndex: 1002
+                  }}
+                  draggable={false}
+                >
+                  <img
+                    src={btQuizImg}
+                    alt="Quiz"
+                    style={{
+                      display: 'block',
+                      width: 'auto',
+                      height: 'auto',
+                      maxWidth: '100%',
+                      maxHeight: '100%',
+                      pointerEvents: 'none',
+                      userSelect: 'none'
+                    }}
+                    draggable={false}
+                  />
+                </button>
+              </div>
             </div>
           )}
 
@@ -738,72 +823,32 @@ export const ARScreen: React.FC<ARScreenProps> = ({
                 top: '10vh',
                 left: '50%',
                 transform: 'translateX(-50%)',
-                pointerEvents: 'auto'
+                pointerEvents: 'auto',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: '20px'
               }}
             >
-              <img
-                src={getDialogoImg()}
-                alt="História"
-                style={{
-                  userSelect: 'none',
-                  display: 'block'
-                }}
-                draggable={false}
-              />
-              
-              {/* Botão Avançar/Concluir */}
-              <div
-                style={{
-                  position: 'absolute',
-                  bottom: '-60px',
-                  right: '20px',
-                  pointerEvents: 'auto'
-                }}
-              >
-                <button
-                  onClick={handleAvancar}
+              <div style={{ position: 'relative', display: 'inline-block' }}>
+                <img
+                  src={getTopImage()}
+                  alt="História"
                   style={{
-                    backgroundImage: `url("${getAvancarButton()}")`,
-                    backgroundRepeat: 'no-repeat',
-                    backgroundPosition: 'center',
-                    border: 'none',
-                    backgroundColor: 'transparent',
-                    cursor: 'pointer',
                     userSelect: 'none',
-                    padding: 0,
-                    margin: 0
+                    display: 'block'
                   }}
                   draggable={false}
                 />
+                {/* Botão Avançar/Concluir sempre à direita do topo da imagem, a 10px da borda inferior */}
+                {renderAvancarButton(handleAvancar)}
+                {/* Botão Voltar sobreposto à esquerda da imagem, caso showBtVoltar */}
+                {showBtVoltar && (
+                  <div style={{ position: 'absolute', left: 0, bottom: '-10px' }}>
+                    {renderVoltarButton(handleVoltar)}
+                  </div>
+                )}
               </div>
-
-              {/* Botão Voltar */}
-              {showBtVoltar && (
-                <div
-                  style={{
-                    position: 'absolute',
-                    bottom: '-60px',
-                    left: '20px',
-                    pointerEvents: 'auto'
-                  }}
-                >
-                  <button
-                    onClick={handleVoltar}
-                    style={{
-                      backgroundImage: `url("${btVoltarImg}")`,
-                      backgroundRepeat: 'no-repeat',
-                      backgroundPosition: 'center',
-                      border: 'none',
-                      backgroundColor: 'transparent',
-                      cursor: 'pointer',
-                      userSelect: 'none',
-                      padding: 0,
-                      margin: 0
-                    }}
-                    draggable={false}
-                  />
-                </div>
-              )}
             </div>
           )}
 
@@ -822,42 +867,20 @@ export const ARScreen: React.FC<ARScreenProps> = ({
                 gap: '20px'
               }}
             >
-              <img
-                src={getDialogoImg()}
-                alt="Pergunta"
-                style={{
-                  userSelect: 'none',
-                  display: 'block'
-                }}
-                draggable={false}
-              />
-              
-              {quizPerguntaIndex === 1 && (
-                <div
+              <div style={{ position: 'relative', display: 'inline-block' }}>
+                <img
+                  src={getTopImage()}
+                  alt="Pergunta"
                   style={{
-                    position: 'relative',
-                    marginTop: '20px'
+                    userSelect: 'none',
+                    display: 'block'
                   }}
-                >
-                  <button
-                    onClick={handleAvancarQuiz}
-                    style={{
-                      backgroundImage: `url("${btAvancarImg}")`,
-                      backgroundRepeat: 'no-repeat',
-                      backgroundPosition: 'center',
-                      border: 'none',
-                      backgroundColor: 'transparent',
-                      cursor: 'pointer',
-                      userSelect: 'none',
-                      padding: 0,
-                      margin: 0,
-                      display: 'block'
-                    }}
-                    draggable={false}
-                  />
-                </div>
-              )}
-
+                  draggable={false}
+                />
+                {/* Botão Avançar: só em quizPerguntaIndex === 1 */}
+                {quizPerguntaIndex === 1 && renderAvancarButton(handleAvancarQuiz)}
+              </div>
+              {/* Respostas abaixo da imagem (mantém como antes) */}
               {showRespostas && quizPerguntaIndex === 2 && (
                 <div
                   style={{
@@ -929,42 +952,25 @@ export const ARScreen: React.FC<ARScreenProps> = ({
                 top: '10vh',
                 left: '50%',
                 transform: 'translateX(-50%)',
-                pointerEvents: 'auto'
+                pointerEvents: 'auto',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: '20px'
               }}
             >
-              <img
-                src={getDialogoImg()}
-                alt="Dica"
-                style={{
-                  userSelect: 'none',
-                  display: 'block'
-                }}
-                draggable={false}
-              />
-              
-              <div
-                style={{
-                  position: 'absolute',
-                  bottom: '-60px',
-                  right: '20px',
-                  pointerEvents: 'auto'
-                }}
-              >
-                <button
-                  onClick={handleAvancarDica}
+              <div style={{ position: 'relative', display: 'inline-block' }}>
+                <img
+                  src={getTopImage()}
+                  alt="Dica"
                   style={{
-                    backgroundImage: `url("${btAvancarImg}")`,
-                    backgroundRepeat: 'no-repeat',
-                    backgroundPosition: 'center',
-                    border: 'none',
-                    backgroundColor: 'transparent',
-                    cursor: 'pointer',
                     userSelect: 'none',
-                    padding: 0,
-                    margin: 0
+                    display: 'block'
                   }}
                   draggable={false}
                 />
+                {/* Botão Avançar sobreposto à direita da imagem, a 10px da borda inferior */}
+                {renderAvancarButton(handleAvancarDica)}
               </div>
             </div>
           )}
