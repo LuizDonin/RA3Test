@@ -16,6 +16,7 @@ interface ARScreenProps {
 type FolderName = 'Anita' | 'Chiquinha'
 type Phase = 'initial' | 'ar' | 'dialogos' | 'menu' | 'historia' | 'quiz' | 'dicas'
 
+// NOVO: Fase AR imutável após sair da splash inicial
 export const ARScreen: React.FC<ARScreenProps> = ({
   onNavigate: _onNavigate
 }) => {
@@ -36,6 +37,8 @@ export const ARScreen: React.FC<ARScreenProps> = ({
   const [arLoading, setArLoading] = useState(false)
   const [blackCanvasOpacity, setBlackCanvasOpacity] = useState(1)
   const [isFadingIn, setIsFadingIn] = useState(true)
+  // NOVO: flag para saber se já inicializamos a AR (A-Frame/câmera)
+  const [arMounted, setArMounted] = useState(false)
 
   // Novo: controla o fade da splash inicial
   const [initialFadeOpacity, setInitialFadeOpacity] = useState(1)
@@ -162,14 +165,14 @@ export const ARScreen: React.FC<ARScreenProps> = ({
     setPhase('dialogos')
     setDialogIndex(1)
     setShowBtVoltar(false)
+    if (!arMounted) { setArMounted(true) }
   }
 
-  // AR scene/camera boot, etc (mesmo do original)
+  // AR scene/camera boot, etc - SÓ NO INÍCIO (NÃO DEPENDE DA PHASE)
   useEffect(() => {
-    if ((phase !== 'ar' && phase !== 'dialogos') || !usarVideo) {
+    if (!arMounted || !usarVideo) {
       return
     }
-
     async function setupCamera() {
       setArLoading(true)
       try {
@@ -249,10 +252,12 @@ export const ARScreen: React.FC<ARScreenProps> = ({
         videoRef.current.style.opacity = '0'
       }
     }
-  }, [phase, usarVideo])
+    // Só arMounted e usarVideo: NÃO mais phase!
+  }, [arMounted, usarVideo])
 
+  // Monta a entidade (pequeno) SÓ UMA VEZ, e re-renderiza a cada troca de imagem (pequenoImg)
   useEffect(() => {
-    if (phase === 'initial' || !arSceneRef.current) return
+    if (!arMounted || !arSceneRef.current) return
 
     const addPequenoToScene = () => {
       const scene = arSceneRef.current?.getScene()
@@ -348,7 +353,8 @@ export const ARScreen: React.FC<ARScreenProps> = ({
       window.removeEventListener('resize', handleResize)
       window.removeEventListener('orientationchange', handleResize)
     }
-  }, [phase, pequenoImg])
+    // IMPORTANTE: NÃO depende mais de phase, só arMounted e pequenoImg!
+  }, [arMounted, pequenoImg])
 
   // Troca de fase (manual - pelo clique, mas não é mais usada na splash)
   const handleTransitionToAR = () => {
@@ -356,6 +362,7 @@ export const ARScreen: React.FC<ARScreenProps> = ({
     setPhase('dialogos')
     setDialogIndex(1)
     setShowBtVoltar(false)
+    if (!arMounted) setArMounted(true)
   }
 
   // Handlers
@@ -648,7 +655,7 @@ export const ARScreen: React.FC<ARScreenProps> = ({
       )}
 
       {/* Fase AR: A-Frame Scene */}
-      {(phase !== 'initial') && (
+      {arMounted && (
         <div
           style={{
             position: 'fixed',
