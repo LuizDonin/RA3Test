@@ -86,6 +86,20 @@ export const ARSceneAFrame = forwardRef<ARSceneAFrameRef, ARSceneAFrameProps>(({
     }
   }), [])
 
+  useEffect(() => {
+    if (sceneReady) {
+      const sceneEl = document.querySelector('a-scene#ar-scene-main') as HTMLElement
+      if (sceneEl) {
+        sceneEl.style.zIndex = '2'
+        sceneEl.style.pointerEvents = 'none'
+        sceneEl.style.display = 'block'
+        sceneEl.style.visibility = 'visible'
+        sceneEl.style.opacity = '1'
+        console.log('✅ A-Frame scene visível e configurado')
+      }
+    }
+  }, [sceneReady])
+
   return (
     <div className={`ar-scene-aframe ${className}`} style={{ width: '100%', height: '100%', position: 'relative', zIndex: 1 }}>
       {/* A-Frame Scene já foi criado no globalInit.ts - apenas verificar se existe */}

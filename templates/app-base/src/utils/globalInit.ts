@@ -269,8 +269,9 @@ async function initializeAFrameScene(): Promise<void> {
     scene.style.left = '0'
     scene.style.width = '100%'
     scene.style.height = '100%'
-    scene.style.zIndex = '-100' // A-Frame abaixo de tudo
+    scene.style.zIndex = '2' // A-Frame acima do background mas abaixo dos overlays
     scene.style.background = 'transparent'
+    scene.style.pointerEvents = 'none'
     document.body.appendChild(scene)
 
     // Aguardar A-Frame inicializar completamente

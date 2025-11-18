@@ -65,7 +65,8 @@
 /* Container do botão */
 .tutorial-button-container {
     position: absolute;
-    bottom: calc(150px + env(safe-area-inset-bottom));
+    /* Aumenta o valor do bottom para descer o botão mais perto da base */
+    bottom: calc(60px + env(safe-area-inset-bottom));
     left: 50%;
     transform: translateX(-50%);
     z-index: 3;
@@ -211,5 +212,106 @@
 
     to {
         transform: translate(-50%, -50%);
+    }
+}
+
+/* Overlay de fade out */
+.tutorial-fade-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: #585858;
+    z-index: 999;
+    opacity: 0;
+    animation: fadeOut 0.5s ease-out forwards;
+}
+
+@keyframes fadeOut {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+/* Container da imagem tutorialtext */
+.tutorial-text-container {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 70%;
+    max-width: 800px;
+}
+
+/* Imagem tutorialtext com animação scaleUp */
+.tutorial-text-image {
+    width: 100%;
+    height: auto;
+    max-width: 100%;
+    object-fit: contain;
+    display: block;
+    transform: scale(0);
+    animation: scaleUp 0.5s ease-out forwards;
+}
+
+@keyframes scaleUp {
+    from {
+        transform: scale(0);
+        opacity: 0;
+    }
+    to {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+/* Container do botão btchamar */
+.tutorial-btchamar-container {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, calc(-50% + 150px));
+    z-index: 1001;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 80%;
+    max-width: 400px;
+}
+
+/* Botão chamar vindo de baixo */
+.tutorial-button-chamar {
+    width: 300px;
+    height: 100px;
+    border: none;
+    background-color: transparent;
+    background-size: contain;
+    background-repeat: no-repeat;
+    background-position: center;
+    cursor: pointer;
+    padding: 0;
+    margin: 0;
+    min-width: 250px;
+    max-width: 80%;
+    aspect-ratio: 3/1;
+    animation: slideUpFromBottom 0.6s ease-out forwards;
+}
+
+@keyframes slideUpFromBottom {
+    from {
+        transform: translateY(calc(100vh + 150px));
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
     }
 }

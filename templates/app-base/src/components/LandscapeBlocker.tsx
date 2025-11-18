@@ -9,17 +9,8 @@ export const LandscapeBlocker: React.FC = () => {
     const height = window.innerHeight
     const isLandscape = width > height
     
-    // Verificar se é mobile (para não bloquear desktop)
-    const userAgent = navigator.userAgent.toLowerCase()
-    const isMobile = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini/i.test(userAgent) || 
-                     ('ontouchstart' in window) ||
-                     (navigator.maxTouchPoints > 0)
-    
-    // Para desktop, também bloquear se a largura for menor que 768px E landscape
-    const isSmallScreen = width <= 768
-    
-    // Bloquear se for mobile E landscape OU se for tela pequena E landscape
-    if ((isMobile && isLandscape) || (isSmallScreen && isLandscape)) {
+    // SEMPRE bloquear se estiver em landscape (forçado)
+    if (isLandscape) {
       setIsBlocked(true)
       // Desabilitar interações com elementos abaixo
       document.body.style.overflow = 'hidden'

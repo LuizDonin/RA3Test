@@ -17,6 +17,9 @@ export const TutorialScreen: React.FC<TutorialScreenProps> = ({
 }) => {
   const [isRequestingPermission, setIsRequestingPermission] = useState(false)
   const [showBlackScreen, setShowBlackScreen] = useState(false)
+  const [showFadeOut, setShowFadeOut] = useState(false)
+  const [showTutorialText, setShowTutorialText] = useState(false)
+  const [showBtChamar, setShowBtChamar] = useState(false)
 
   // Inicializar A-Frame quando a tela montar (caso não tenha sido inicializado na CoverScreen)
   useEffect(() => {
@@ -37,15 +40,38 @@ export const TutorialScreen: React.FC<TutorialScreenProps> = ({
     }
   }, [])
 
-  // Função para lidar com a navegação para ARScreen, solicitando permissão primeiro
-  const handleNavigateToAR = async () => {
+  // Função para iniciar a sequência de animações ao clicar em "Começar"
+  const handleNavigateToAR = () => {
     if (isRequestingPermission) return
 
     playClickSound()
-    
-    // Mostrar tela preta IMEDIATAMENTE antes de qualquer coisa
-    setShowBlackScreen(true)
     setIsRequestingPermission(true)
+    
+    // Iniciar sequência de animações
+    // 1. Fade out da tela
+    setShowFadeOut(true)
+    
+    // 2. Após fade out, mostrar tutorialtext com scaleUp
+    setTimeout(() => {
+      setShowTutorialText(true)
+    }, 500) // Tempo do fade out
+    
+    // 3. Após scaleUp, mostrar btchamar vindo de baixo
+    setTimeout(() => {
+      setShowBtChamar(true)
+      setIsRequestingPermission(false) // Reabilitar após animações
+    }, 1000) // Tempo do fade out + scaleUp
+  }
+
+  // Função para lidar com a navegação para ARScreen ao clicar no btchamar
+  const handleBtChamarClick = async () => {
+    if (isRequestingPermission) return
+
+    playClickSound()
+    setIsRequestingPermission(true)
+    
+    // Mostrar tela preta antes de navegar
+    setShowBlackScreen(true)
     
     try {
       // Solicitar permissão de orientação do dispositivo antes de navegar
@@ -91,9 +117,11 @@ export const TutorialScreen: React.FC<TutorialScreenProps> = ({
     return `${baseUrl}/${cleanPath}`
   }
 
-  const bgImage = normalizePath('assets/images/bg-capa.png')
+  const bgImage = normalizePath('assets/images/bg.png')
   const tutorialPanelImage = normalizePath('assets/images/tutorial-panel.png')
   const btnComecarImage = normalizePath('assets/images/btn-comecar.png')
+  const tutorialTextImage = normalizePath('assets/images/tutorialtext.png')
+  const btChamarImage = normalizePath('assets/images/btchamar.png')
 
   return (
     <>
@@ -123,6 +151,11 @@ export const TutorialScreen: React.FC<TutorialScreenProps> = ({
           backgroundRepeat: 'no-repeat'
         }}
       >
+      {/* Overlay de fade out */}
+      {showFadeOut && (
+        <div className="tutorial-fade-overlay" />
+      )}
+
       {/* Imagem central do tutorial */}
       <div className="tutorial-panel-container">
         <img
@@ -131,6 +164,17 @@ export const TutorialScreen: React.FC<TutorialScreenProps> = ({
           className="tutorial-panel-image"
         />
       </div>
+
+      {/* Imagem tutorialtext com scaleUp */}
+      {showTutorialText && (
+        <div className="tutorial-text-container">
+          <img
+            src={tutorialTextImage}
+            alt="Tutorial Text"
+            className="tutorial-text-image"
+          />
+        </div>
+      )}
 
       {/* Botão Começar RA */}
       <div className="tutorial-button-container">
@@ -148,6 +192,25 @@ export const TutorialScreen: React.FC<TutorialScreenProps> = ({
           }}
         />
       </div>
+
+      {/* Botão Chamar vindo de baixo */}
+      {showBtChamar && (
+        <div className="tutorial-btchamar-container">
+          <button
+            className="tutorial-button-chamar"
+            onClick={handleBtChamarClick}
+            disabled={isRequestingPermission}
+            style={{
+              backgroundImage: `url("${btChamarImage}")`,
+              backgroundSize: 'contain',
+              backgroundRepeat: 'no-repeat',
+              backgroundPosition: 'center',
+              opacity: isRequestingPermission ? 0.7 : 1,
+              cursor: isRequestingPermission ? 'wait' : 'pointer'
+            }}
+          />
+        </div>
+      )}
     </div>
     </>
   )
