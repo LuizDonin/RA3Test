@@ -57,7 +57,7 @@
     height: auto;
     object-fit: cover;
     object-position: top;
-    margin-top: 25px;
+    margin-top: 35px;
     display: block;
 }
 
@@ -132,7 +132,7 @@
 /* Botão Jogar */
 .cover-button-jogar {
     width: 200px;
-    height: 80px;
+    height: 75px;
     border: none;
     background-color: transparent;
     background-size: contain;
@@ -141,7 +141,7 @@
     cursor: pointer;
     padding: 0;
     margin: 0;
-    margin-top: 150px;
+    margin-top: 180px;
     z-index: 10;
     min-width: 250px;
     max-width: 80%;
