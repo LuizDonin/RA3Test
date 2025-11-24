@@ -211,9 +211,11 @@ export const ARScreen: React.FC<ARScreenProps> = ({
           currentVideo.style.transition = 'opacity 0.6s ease-in'
           // Aplicar/remover espelhamento baseado na câmera
           if (shouldUseFront) {
-            currentVideo.style.transform = 'scaleX(-1)'
+            currentVideo.style.setProperty('transform', 'scaleX(-1)', 'important')
+            currentVideo.style.setProperty('-webkit-transform', 'scaleX(-1)', 'important')
           } else {
-            currentVideo.style.transform = 'scaleX(1)'
+            currentVideo.style.setProperty('transform', 'scaleX(1)', 'important')
+            currentVideo.style.setProperty('-webkit-transform', 'scaleX(1)', 'important')
           }
           setArLoading(false)
           setTimeout(() => {
@@ -286,9 +288,11 @@ export const ARScreen: React.FC<ARScreenProps> = ({
         video.style.transition = 'opacity 0.6s ease-in'
         // Desespelhar a câmera frontal (scaleX(-1))
         if (shouldUseFront) {
-          video.style.transform = 'scaleX(-1)'
+          video.style.setProperty('transform', 'scaleX(-1)', 'important')
+          video.style.setProperty('-webkit-transform', 'scaleX(-1)', 'important')
         } else {
-          video.style.transform = 'scaleX(1)'
+          video.style.setProperty('transform', 'scaleX(1)', 'important')
+          video.style.setProperty('-webkit-transform', 'scaleX(1)', 'important')
         }
         document.body.appendChild(video)
 
@@ -322,6 +326,27 @@ export const ARScreen: React.FC<ARScreenProps> = ({
       }
     }
   }, [arMounted, usarVideo, frontCameraActive, config])
+
+  // Aplicar/remover espelhamento sempre que frontCameraActive mudar
+  useEffect(() => {
+    // Usar um pequeno delay para garantir que o vídeo esteja no DOM
+    const timeoutId = setTimeout(() => {
+      const video = videoRef.current || (document.getElementById('arjs-video') as HTMLVideoElement | null)
+      if (video) {
+        if (frontCameraActive) {
+          video.style.setProperty('transform', 'scaleX(-1)', 'important')
+          video.style.setProperty('-webkit-transform', 'scaleX(-1)', 'important')
+          console.log('[ARScreen] Aplicando espelhamento (scaleX(-1)) na câmera frontal')
+        } else {
+          video.style.setProperty('transform', 'scaleX(1)', 'important')
+          video.style.setProperty('-webkit-transform', 'scaleX(1)', 'important')
+          console.log('[ARScreen] Removendo espelhamento (scaleX(1)) da câmera traseira')
+        }
+      }
+    }, 100)
+    
+    return () => clearTimeout(timeoutId)
+  }, [frontCameraActive])
 
   // Mudança para garantir que a câmera esteja na frontal durante o "feedback-positivo" com pequeno no canto
   useEffect(() => {
