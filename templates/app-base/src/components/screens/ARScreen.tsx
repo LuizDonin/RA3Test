@@ -753,60 +753,125 @@ export const ARScreen: React.FC<ARScreenProps> = ({
   const handleSelfiePhoto = async () => {
     setPhotoError(null)
     setIsTakingPhoto(true)
+    
+    // Esconder a cena AR antes de tirar a foto
+    const sceneEl = document.querySelector('a-scene#ar-scene-main') as HTMLElement | null
+    const originalSceneDisplay = sceneEl?.style.display
+    const originalSceneVisibility = sceneEl?.style.visibility
+    const originalSceneOpacity = sceneEl?.style.opacity
+    
+    if (sceneEl) {
+      sceneEl.style.display = 'none'
+      sceneEl.style.visibility = 'hidden'
+      sceneEl.style.opacity = '0'
+    }
+    
+    // Pequeno delay para garantir que o AR desapareça antes de capturar
+    await new Promise(resolve => setTimeout(resolve, 100))
+    
     try {
-      // Option 1: Take snapshot from <video> (front cam already ON)
-      const video = document.getElementById('arjs-video') as HTMLVideoElement | null
-      if (video && video.videoWidth > 0 && video.videoHeight > 0) {
-        // Prepare a canvas the size of the viewport (or video)
-        const width = window.innerWidth
-        const height = window.innerHeight
-        const canvas = document.createElement('canvas')
-        canvas.width = width
-        canvas.height = height
-        const ctx = canvas.getContext('2d')
-        if (!ctx) throw new Error('Canvas context not available')
-
-        // Draw the current video frame
-        ctx.drawImage(video, 0, 0, width, height)
-
-        // Now draw the overlays (pequeno in lower right, hjeuconheci/camera-icon overlays not drawn)
-        // Draw the "pequeno" img in exactly same position/size as displayed
-        if (pequenoImgRef.current && pequenoImgRef.current.complete) {
-          const img = pequenoImgRef.current
-          // In overlay: fixed, right: 0, bottom: 0, width: 300px (no scaling of height)
-          // For more responsive, check if less then 300px width (not mandatory for your design)
-          const imgWidth = 300
-          const imgHeight = img.naturalHeight * (imgWidth / img.naturalWidth)
-          ctx.drawImage(img, width - imgWidth, height - imgHeight, imgWidth, imgHeight)
-        }
-
-        // Also draw the hjeuconheci on upper LEFT
-        const hjeImg = new window.Image()
-        hjeImg.src = hjeUConheciImg
-        // Camera icon is NOT drawn (as it's a button only)
-        await new Promise<void>((resolve, reject) => {
-          hjeImg.onload = () => resolve()
-          hjeImg.onerror = () => resolve()
-        })
-        // Let's define the left/top margin (same as .png, or 20px)
-        if (hjeImg.complete) {
-          ctx.drawImage(hjeImg, 20, 20)
-        }
-
-        // Convert to photo
-        const dataUrl = canvas.toDataURL('image/png')
-
-        // Download the image
-        const link = document.createElement('a')
-        link.href = dataUrl
-        link.download = 'selfie-ar.png'
-        link.click()
-      } else {
-        setPhotoError('Câmera não disponível')
+      // Usar videoRef.current primeiro, depois fallback para getElementById
+      const video = videoRef.current || (document.getElementById('arjs-video') as HTMLVideoElement | null)
+      
+      if (!video) {
+        throw new Error('Elemento de vídeo não encontrado')
       }
+      
+      // Verificar se o vídeo está pronto e tem dimensões válidas
+      if (video.readyState < 2) {
+        // Aguardar o vídeo estar pronto
+        await new Promise<void>((resolve, reject) => {
+          const timeout = setTimeout(() => reject(new Error('Timeout aguardando vídeo')), 3000)
+          const onCanPlay = () => {
+            clearTimeout(timeout)
+            video.removeEventListener('canplay', onCanPlay)
+            resolve()
+          }
+          video.addEventListener('canplay', onCanPlay)
+          if (video.readyState >= 2) {
+            clearTimeout(timeout)
+            video.removeEventListener('canplay', onCanPlay)
+            resolve()
+          }
+        })
+      }
+      
+      // Verificar dimensões do vídeo
+      const videoWidth = video.videoWidth || video.clientWidth || window.innerWidth
+      const videoHeight = video.videoHeight || video.clientHeight || window.innerHeight
+      
+      if (videoWidth === 0 || videoHeight === 0) {
+        throw new Error('Dimensões do vídeo inválidas')
+      }
+      
+      // Prepare a canvas the size of the viewport
+      const width = window.innerWidth
+      const height = window.innerHeight
+      const canvas = document.createElement('canvas')
+      canvas.width = width
+      canvas.height = height
+      const ctx = canvas.getContext('2d')
+      if (!ctx) throw new Error('Canvas context not available')
+
+      // Draw the current video frame (escalado para preencher o canvas)
+      ctx.drawImage(video, 0, 0, width, height)
+
+      // Draw the "pequeno" img in lower right (apenas a imagem overlay, não a do AR)
+      if (pequenoImgRef.current && pequenoImgRef.current.complete) {
+        const img = pequenoImgRef.current
+        const imgWidth = 300
+        const imgHeight = img.naturalHeight * (imgWidth / img.naturalWidth)
+        // Ajustar para bottom: 20 (mesmo que no CSS)
+        ctx.drawImage(img, width - imgWidth, height - imgHeight - 20, imgWidth, imgHeight)
+      }
+
+      // Draw the hjeuconheci on upper LEFT
+      const hjeImg = new window.Image()
+      hjeImg.crossOrigin = 'anonymous'
+      hjeImg.src = hjeUConheciImg
+      await new Promise<void>((resolve) => {
+        if (hjeImg.complete) {
+          resolve()
+        } else {
+          hjeImg.onload = () => resolve()
+          hjeImg.onerror = () => resolve() // Continuar mesmo se falhar
+        }
+      })
+      if (hjeImg.complete && hjeImg.naturalWidth > 0) {
+        ctx.drawImage(hjeImg, 20, 20)
+      }
+
+      // Convert to photo
+      const dataUrl = canvas.toDataURL('image/png', 0.95)
+
+      // Download the image
+      const link = document.createElement('a')
+      link.href = dataUrl
+      link.download = `selfie-ar-${Date.now()}.png`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      
+      console.log('[ARScreen] Foto capturada com sucesso')
     } catch (err) {
-      setPhotoError('Erro ao tirar foto. Tente novamente.')
+      console.error('[ARScreen] Erro ao capturar foto:', err)
+      setPhotoError(err instanceof Error ? err.message : 'Erro ao tirar foto. Tente novamente.')
     } finally {
+      // Restaurar a cena AR após a captura (mas manter escondida se ainda estiver na fase de selfie)
+      // Verificar o estado atual da fase e registrouPequeno
+      const currentPhase = phase
+      const currentRegistrouPequeno = registrouPequeno
+      
+      if (sceneEl && !(currentPhase === 'feedback-positivo' && currentRegistrouPequeno)) {
+        if (originalSceneDisplay !== undefined) sceneEl.style.display = originalSceneDisplay
+        if (originalSceneVisibility !== undefined) sceneEl.style.visibility = originalSceneVisibility
+        if (originalSceneOpacity !== undefined) sceneEl.style.opacity = originalSceneOpacity
+      } else if (sceneEl) {
+        // Manter escondida se ainda estiver na fase de selfie
+        sceneEl.style.display = 'none'
+        sceneEl.style.visibility = 'hidden'
+        sceneEl.style.opacity = '0'
+      }
       setTimeout(() => setIsTakingPhoto(false), 400)
     }
   }
