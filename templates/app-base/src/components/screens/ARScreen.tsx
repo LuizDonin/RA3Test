@@ -177,58 +177,90 @@ export const ARScreen: React.FC<ARScreenProps> = ({
     if (!arMounted || !usarVideo) {
       return
     }
-    async function setupCamera(front = false) {
+    async function setupCamera() {
+      // Usar o valor atualizado de frontCameraActive diretamente
+      const shouldUseFront = frontCameraActive
+      
       setArLoading(true)
       try {
-        // Determinar se precisa trocar de câmera
-        const needsSwitch = videoRef.current && mediaStreamRef.current && 
-          ((front && !frontCameraActive) || (!front && frontCameraActive))
-        
-        // Se a câmera já está correta e não precisa trocar, apenas mostrar
-        if (
-          videoRef.current &&
-          !needsSwitch &&
-          ((frontCameraActive && front) || (!frontCameraActive && !front))
-        ) {
-          videoRef.current.style.display = 'block'
-          videoRef.current.style.visibility = 'visible'
-          videoRef.current.style.opacity = '0'
-          videoRef.current.style.zIndex = '0'
-          videoRef.current.style.transition = 'opacity 0.6s ease-in'
+        // Verificar se já existe um stream e se precisa trocar
+        const currentStream = mediaStreamRef.current
+        const currentVideo = videoRef.current
+        let needsSwitch = false
+
+        if (currentStream && currentVideo) {
+          // Verificar qual câmera está sendo usada atualmente
+          const videoTrack = currentStream.getVideoTracks()[0]
+          if (videoTrack) {
+            const currentSettings = videoTrack.getSettings()
+            const currentFacingMode = currentSettings.facingMode
+            const desiredFacingMode = shouldUseFront ? 'user' : 'environment'
+            
+            // Se a câmera atual é diferente da desejada, precisa trocar
+            needsSwitch = currentFacingMode !== desiredFacingMode
+            console.log(`[ARScreen] Câmera atual: ${currentFacingMode}, desejada: ${desiredFacingMode}, precisa trocar: ${needsSwitch}`)
+          }
+        }
+
+        // Se não precisa trocar e o vídeo já existe, apenas mostrar
+        if (!needsSwitch && currentVideo && currentStream) {
+          currentVideo.style.display = 'block'
+          currentVideo.style.visibility = 'visible'
+          currentVideo.style.opacity = '0'
+          currentVideo.style.zIndex = '0'
+          currentVideo.style.transition = 'opacity 0.6s ease-in'
           setArLoading(false)
           setTimeout(() => {
             setIsFadingIn(true)
-            if (videoRef.current) {
-              videoRef.current.style.opacity = '1'
+            if (currentVideo) {
+              currentVideo.style.opacity = '1'
             }
           }, 100)
           return
         }
 
         // Stop old stream if switching camera
-        if (videoRef.current && mediaStreamRef.current) {
-          const tracks = (mediaStreamRef.current as MediaStream).getTracks?.()
-          tracks && tracks.forEach((t) => t.stop())
-          videoRef.current.remove()
+        if (currentVideo && currentStream) {
+          const tracks = currentStream.getTracks()
+          tracks.forEach((t) => t.stop())
+          currentVideo.remove()
           videoRef.current = null
+          mediaStreamRef.current = null
         }
 
         // IGNORAR cameraFacing do ra.json quando forçar câmera frontal para selfie
-        // Sempre usar 'user' (frontal) quando front=true, independente da configuração
-        const facingMode = front ? 'user' : (config.cameraFacing || 'environment')
+        // Sempre usar 'user' (frontal) quando shouldUseFront=true, independente da configuração
+        const facingMode = shouldUseFront ? 'user' : (config.cameraFacing || 'environment')
 
-        const constraints: MediaStreamConstraints = {
+        // Tentar primeiro com 'exact' para garantir que a câmera correta seja usada
+        // Se falhar, tentar com 'ideal' como fallback
+        let constraints: MediaStreamConstraints = {
           video: {
             width: { ideal: 1280 },
             height: { ideal: 720 },
-            facingMode: { ideal: facingMode }
+            facingMode: { exact: facingMode as 'user' | 'environment' }
           },
           audio: false
         }
 
-        console.log(`[ARScreen] Configurando câmera: ${facingMode} (front=${front})`)
+        console.log(`[ARScreen] Tentando configurar câmera com exact: ${facingMode} (front=${shouldUseFront})`)
 
-        const stream = await navigator.mediaDevices.getUserMedia(constraints)
+        let stream: MediaStream
+        try {
+          stream = await navigator.mediaDevices.getUserMedia(constraints)
+        } catch (exactError) {
+          // Se falhar com 'exact', tentar com 'ideal'
+          console.warn(`[ARScreen] Falha com exact, tentando com ideal:`, exactError)
+          constraints = {
+            video: {
+              width: { ideal: 1280 },
+              height: { ideal: 720 },
+              facingMode: { ideal: facingMode as 'user' | 'environment' }
+            },
+            audio: false
+          }
+          stream = await navigator.mediaDevices.getUserMedia(constraints)
+        }
 
         const video = document.createElement('video')
         video.id = 'arjs-video'
@@ -258,8 +290,7 @@ export const ARScreen: React.FC<ARScreenProps> = ({
         setTimeout(() => {
           video.style.opacity = '1'
         }, 100)
-        setFrontCameraActive(front)
-        console.log(`[ARScreen] Câmera configurada: ${facingMode} (frontCameraActive=${front})`)
+        console.log(`[ARScreen] Câmera configurada com sucesso: ${facingMode} (frontCameraActive=${shouldUseFront})`)
       } catch (err) {
         console.error('Erro ao configurar câmera:', err)
         setArLoading(false)
@@ -269,7 +300,7 @@ export const ARScreen: React.FC<ARScreenProps> = ({
       }
     }
 
-    setupCamera(frontCameraActive)
+    setupCamera()
 
     return () => {
       if (videoRef.current) {
@@ -288,13 +319,17 @@ export const ARScreen: React.FC<ARScreenProps> = ({
       (showPequenoOverlay || registrouPequeno)
     ) {
       // FORÇAR câmera frontal sempre que estiver na fase de selfie
+      // Usar setTimeout para garantir que o estado seja atualizado após o handleRegistrar
       if (!frontCameraActive) {
         console.log('[ARScreen] Forçando ativação da câmera frontal para selfie com personagem pequeno')
-        setFrontCameraActive(true)
+        // Pequeno delay para garantir que o estado seja processado
+        setTimeout(() => {
+          setFrontCameraActive(true)
+        }, 50)
       }
     }
   // eslint-disable-next-line
-  }, [phase, showPequenoOverlay, registrouPequeno, frontCameraActive])
+  }, [phase, showPequenoOverlay, registrouPequeno])
 
   // --- AR overlay logic (pequeno overlay in feedback-positivo) ----
   useEffect(() => {
@@ -542,12 +577,13 @@ export const ARScreen: React.FC<ARScreenProps> = ({
     playClickSound()
     // FORÇAR câmera frontal antes de mostrar o overlay
     console.log('[ARScreen] handleRegistrar: Forçando câmera frontal para selfie')
+    
+    // Primeiro, mostrar o overlay (isso vai acionar o useEffect que força a câmera frontal)
+    setShowPequenoOverlay(true)
+    setRegistrouPequeno(true)
+    
+    // Depois, forçar a troca de câmera (isso vai acionar o useEffect de setupCamera)
     setFrontCameraActive(true)
-    // Pequeno delay para garantir que a câmera troque antes de mostrar o overlay
-    setTimeout(() => {
-      setShowPequenoOverlay(true)
-      setRegistrouPequeno(true)
-    }, 100)
   }
   const handleInicio = () => {
     playClickSound()
