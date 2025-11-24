@@ -13,7 +13,7 @@ interface ARScreenProps {
   backgroundImage?: string
 }
 
-type FolderName = 'Anita' | 'Chiquinha'
+type FolderName = 'Anita' | 'Chiquinha' | 'Pitagoras' | 'Darwin' | 'Leonardo' | 'Machado'
 type Phase = 'initial' | 'ar' | 'dialogos' | 'menu' | 'historia' | 'quiz' | 'feedback-negativo' | 'feedback-positivo' | 'dicas'
 
 export const ARScreen: React.FC<ARScreenProps> = ({
@@ -24,7 +24,7 @@ export const ARScreen: React.FC<ARScreenProps> = ({
   const usarVideo = config.usarVideo !== false
 
   const [selectedFolder] = useState<FolderName>(() => {
-    const folders: FolderName[] = ['Anita', 'Chiquinha']
+    const folders: FolderName[] = ['Anita', 'Chiquinha', 'Pitagoras', 'Darwin', 'Leonardo', 'Machado']
     const selected = folders[Math.floor(Math.random() * folders.length)]
     console.log('📁 Pasta selecionada:', selected)
     return selected
@@ -105,6 +105,7 @@ export const ARScreen: React.FC<ARScreenProps> = ({
   const historia3Img = useMemo(() => normalizePath(`assets/images/${selectedFolder}/historia3.png`), [normalizePath, selectedFolder])
   const pergunta1Img = useMemo(() => normalizePath(`assets/images/${selectedFolder}/pergunta1.png`), [normalizePath, selectedFolder])
   const pergunta2Img = useMemo(() => normalizePath(`assets/images/${selectedFolder}/pergunta2.png`), [normalizePath, selectedFolder])
+  const pergunta3Img = useMemo(() => normalizePath(`assets/images/${selectedFolder}/pergunta3.png`), [normalizePath, selectedFolder])
   const resposta1Img = useMemo(() => normalizePath(`assets/images/${selectedFolder}/resposta1.png`), [normalizePath, selectedFolder])
   const resposta2Img = useMemo(() => normalizePath(`assets/images/${selectedFolder}/resposta2.png`), [normalizePath, selectedFolder])
   const resposta3Img = useMemo(() => normalizePath(`assets/images/${selectedFolder}/resposta3.png`), [normalizePath, selectedFolder])
@@ -551,14 +552,31 @@ export const ARScreen: React.FC<ARScreenProps> = ({
     setShowBtVoltar(false)
   }
 
+  // --- INÍCIO DA MUDANÇA: Fazer quizPerguntaIndex avançar corretamente para 3 perguntas se selectedFolder for "Darwin".
+  const isDarwin = selectedFolder.toLowerCase() === 'darwin'
+
   const handleAvancarQuiz = () => {
     playClickSound()
-    if (quizPerguntaIndex === 1) {
-      setQuizPerguntaIndex(2)
-      setShowRespostas(true)
-      setShowBtVoltar(false)
+    // Para "Darwin", são 3 perguntas, senão 2
+    if (isDarwin) {
+      if (quizPerguntaIndex === 1) {
+        setQuizPerguntaIndex(2)
+        setShowRespostas(false) // Não mostra respostas ainda
+        setShowBtVoltar(false)
+      } else if (quizPerguntaIndex === 2) {
+        setQuizPerguntaIndex(3)
+        setShowRespostas(true)   // Só mostra as respostas na última pergunta
+        setShowBtVoltar(false)
+      }
+    } else {
+      if (quizPerguntaIndex === 1) {
+        setQuizPerguntaIndex(2)
+        setShowRespostas(true)
+        setShowBtVoltar(false)
+      }
     }
   }
+  // --- FIM DA MUDANÇA
 
   const handleResposta1 = () => {
     playSuccessSound()
@@ -696,8 +714,16 @@ export const ARScreen: React.FC<ARScreenProps> = ({
       if (historiaIndex === 3) return historia3Img
     }
     if (phase === 'quiz') {
-      if (quizPerguntaIndex === 1) return pergunta1Img
-      if (quizPerguntaIndex === 2) return pergunta2Img
+      // --- INÍCIO DA MUDANÇA: Mostrar pergunta de acordo com a pasta e index
+      if (isDarwin) {
+        if (quizPerguntaIndex === 1) return pergunta1Img
+        if (quizPerguntaIndex === 2) return pergunta2Img
+        if (quizPerguntaIndex === 3) return pergunta3Img
+      } else {
+        if (quizPerguntaIndex === 1) return pergunta1Img
+        if (quizPerguntaIndex === 2) return pergunta2Img
+      }
+      // --- FIM DA MUDANÇA
     }
     if (dialogIndex === 1) return dialogo1Img
     if (dialogIndex === 2) return dialogo2Img
@@ -783,6 +809,7 @@ export const ARScreen: React.FC<ARScreenProps> = ({
     </button>
   )
 
+  // --- INÍCIO DA MUDANÇA: Avanço correto da tela de quiz e respostas para Darwin
   const handleAvancar = () => {
     if (phase === 'historia' && historiaIndex === 3) {
       handleConcluirHistoria()
@@ -1518,6 +1545,7 @@ export const ARScreen: React.FC<ARScreenProps> = ({
             </div>
           )}
 
+          {/* --- INÍCIO DA MUDANÇA: Quiz flexível para n-perguntas (este caso: 3 perguntas para Darwin) --- */}
           {phase === 'quiz' && !mostrarDicaDialog && (
             <div
               style={{
@@ -1542,9 +1570,20 @@ export const ARScreen: React.FC<ARScreenProps> = ({
                   }}
                   draggable={false}
                 />
-                {quizPerguntaIndex === 1 && renderAvancarButton(handleAvancarQuiz)}
+                {/* Botão avançar: se for Darwin, só mostra até quizPerguntaIndex < 3; senão até <2 */}
+                {isDarwin
+                  ? (
+                      quizPerguntaIndex === 1 || quizPerguntaIndex === 2
+                        ? renderAvancarButton(handleAvancarQuiz)
+                        : null
+                    )
+                  : (
+                      quizPerguntaIndex === 1 && renderAvancarButton(handleAvancarQuiz)
+                    )
+                }
               </div>
-              {showRespostas && quizPerguntaIndex === 2 && (
+              {/* Mostrar respostas somente ao chegar na última pergunta do quiz (pasta Darwin: 3; senão 2) */}
+              {showRespostas && (
                 <div
                   className={shakeClass}
                   style={{
@@ -1641,6 +1680,7 @@ export const ARScreen: React.FC<ARScreenProps> = ({
               )}
             </div>
           )}
+          {/* --- FIM DA MUDANÇA */}
 
           {mostrarDicaDialog && (
             <div
