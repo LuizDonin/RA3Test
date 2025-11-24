@@ -180,9 +180,14 @@ export const ARScreen: React.FC<ARScreenProps> = ({
     async function setupCamera(front = false) {
       setArLoading(true)
       try {
-        // If front camera is already active, don't try to switch again
+        // Determinar se precisa trocar de câmera
+        const needsSwitch = videoRef.current && mediaStreamRef.current && 
+          ((front && !frontCameraActive) || (!front && frontCameraActive))
+        
+        // Se a câmera já está correta e não precisa trocar, apenas mostrar
         if (
           videoRef.current &&
+          !needsSwitch &&
           ((frontCameraActive && front) || (!frontCameraActive && !front))
         ) {
           videoRef.current.style.display = 'block'
@@ -208,14 +213,20 @@ export const ARScreen: React.FC<ARScreenProps> = ({
           videoRef.current = null
         }
 
+        // IGNORAR cameraFacing do ra.json quando forçar câmera frontal para selfie
+        // Sempre usar 'user' (frontal) quando front=true, independente da configuração
+        const facingMode = front ? 'user' : (config.cameraFacing || 'environment')
+
         const constraints: MediaStreamConstraints = {
           video: {
             width: { ideal: 1280 },
             height: { ideal: 720 },
-            facingMode: { ideal: front ? 'user' : 'environment' }
+            facingMode: { ideal: facingMode }
           },
           audio: false
         }
+
+        console.log(`[ARScreen] Configurando câmera: ${facingMode} (front=${front})`)
 
         const stream = await navigator.mediaDevices.getUserMedia(constraints)
 
@@ -248,6 +259,7 @@ export const ARScreen: React.FC<ARScreenProps> = ({
           video.style.opacity = '1'
         }, 100)
         setFrontCameraActive(front)
+        console.log(`[ARScreen] Câmera configurada: ${facingMode} (frontCameraActive=${front})`)
       } catch (err) {
         console.error('Erro ao configurar câmera:', err)
         setArLoading(false)
@@ -266,7 +278,23 @@ export const ARScreen: React.FC<ARScreenProps> = ({
         videoRef.current.style.opacity = '0'
       }
     }
-  }, [arMounted, usarVideo, frontCameraActive])
+  }, [arMounted, usarVideo, frontCameraActive, config])
+
+  // Mudança para garantir que a câmera esteja na frontal durante o "feedback-positivo" com pequeno no canto
+  useEffect(() => {
+    // Quando mostrar o overlay do pequeno (registrouPequeno OU showPequenoOverlay), garantir que frontCameraActive esteja true
+    if (
+      phase === 'feedback-positivo' &&
+      (showPequenoOverlay || registrouPequeno)
+    ) {
+      // FORÇAR câmera frontal sempre que estiver na fase de selfie
+      if (!frontCameraActive) {
+        console.log('[ARScreen] Forçando ativação da câmera frontal para selfie com personagem pequeno')
+        setFrontCameraActive(true)
+      }
+    }
+  // eslint-disable-next-line
+  }, [phase, showPequenoOverlay, registrouPequeno, frontCameraActive])
 
   // --- AR overlay logic (pequeno overlay in feedback-positivo) ----
   useEffect(() => {
@@ -464,7 +492,7 @@ export const ARScreen: React.FC<ARScreenProps> = ({
     playSuccessSound()
     setPhase('feedback-positivo')
     setShowPequenoOverlay(false)
-    setFrontCameraActive(false)
+    // NÃO resetar frontCameraActive aqui - será ativado quando o usuário clicar em "Registrar"
     setRegistrouPequeno(false)
   }
 
@@ -512,9 +540,14 @@ export const ARScreen: React.FC<ARScreenProps> = ({
   }
   const handleRegistrar = async () => {
     playClickSound()
+    // FORÇAR câmera frontal antes de mostrar o overlay
+    console.log('[ARScreen] handleRegistrar: Forçando câmera frontal para selfie')
     setFrontCameraActive(true)
-    setShowPequenoOverlay(true)
-    setRegistrouPequeno(true)
+    // Pequeno delay para garantir que a câmera troque antes de mostrar o overlay
+    setTimeout(() => {
+      setShowPequenoOverlay(true)
+      setRegistrouPequeno(true)
+    }, 100)
   }
   const handleInicio = () => {
     playClickSound()
