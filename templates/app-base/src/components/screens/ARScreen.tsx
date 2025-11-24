@@ -209,6 +209,12 @@ export const ARScreen: React.FC<ARScreenProps> = ({
           currentVideo.style.opacity = '0'
           currentVideo.style.zIndex = '0'
           currentVideo.style.transition = 'opacity 0.6s ease-in'
+          // Aplicar/remover espelhamento baseado na câmera
+          if (shouldUseFront) {
+            currentVideo.style.transform = 'scaleX(-1)'
+          } else {
+            currentVideo.style.transform = 'scaleX(1)'
+          }
           setArLoading(false)
           setTimeout(() => {
             setIsFadingIn(true)
@@ -278,6 +284,12 @@ export const ARScreen: React.FC<ARScreenProps> = ({
         video.style.visibility = 'visible'
         video.style.opacity = '0'
         video.style.transition = 'opacity 0.6s ease-in'
+        // Desespelhar a câmera frontal (scaleX(-1))
+        if (shouldUseFront) {
+          video.style.transform = 'scaleX(-1)'
+        } else {
+          video.style.transform = 'scaleX(1)'
+        }
         document.body.appendChild(video)
 
         video.srcObject = stream
@@ -601,14 +613,54 @@ export const ARScreen: React.FC<ARScreenProps> = ({
     // Depois, forçar a troca de câmera (isso vai acionar o useEffect de setupCamera)
     setFrontCameraActive(true)
   }
-  const handleInicio = () => {
-    playClickSound()
+  // Função para reiniciar completamente a experiência
+  const resetExperience = useCallback(() => {
+    console.log('[ARScreen] Reiniciando experiência completa')
+    
+    // Resetar todos os estados
     setPhase('initial')
     setIsFadingIn(true)
     setFrontCameraActive(false)
     setShowPequenoOverlay(false)
     setRegistrouPequeno(false)
+    setDialogIndex(1)
+    setShowBtVoltar(false)
+    setHistoriaIndex(1)
+    setQuizPerguntaIndex(1)
+    setShowRespostas(false)
+    setMostrarDicaDialog(false)
+    setDicaDialogIndex(1)
+    setShake(false)
+    setIsTakingPhoto(false)
+    setPhotoError(null)
+    
+    // Remover entidade AR se existir
+    if (pequenoEntityId.current && arSceneRef.current) {
+      arSceneRef.current.removeEntity(pequenoEntityId.current)
+      pequenoEntityId.current = ''
+    }
+    
+    // Restaurar cena AR
+    const sceneEl = document.querySelector('a-scene#ar-scene-main') as HTMLElement | null
+    if (sceneEl) {
+      sceneEl.style.display = 'block'
+      sceneEl.style.visibility = 'visible'
+      sceneEl.style.opacity = '1'
+    }
+    
+    // Restaurar transform do vídeo (remover espelhamento)
+    const video = videoRef.current || (document.getElementById('arjs-video') as HTMLVideoElement | null)
+    if (video) {
+      video.style.transform = 'scaleX(1)'
+    }
+    
+    // Navegar para a tela de cover
     _onNavigate('cover')
+  }, [_onNavigate])
+
+  const handleInicio = () => {
+    playClickSound()
+    resetExperience()
   }
 
   // --- IMAGE HELPERS ---
@@ -830,7 +882,19 @@ export const ARScreen: React.FC<ARScreenProps> = ({
       if (!ctx) throw new Error('Canvas context not available')
 
       // Draw the current video frame (escalado para preencher o canvas)
-      ctx.drawImage(video, 0, 0, width, height)
+      // Se a câmera frontal estiver ativa, precisamos desespelhar a imagem no canvas
+      if (frontCameraActive) {
+        // Salvar o contexto
+        ctx.save()
+        // Espelhar horizontalmente (scaleX(-1))
+        ctx.scale(-1, 1)
+        // Desenhar a imagem espelhada (começando da direita)
+        ctx.drawImage(video, -width, 0, width, height)
+        // Restaurar o contexto
+        ctx.restore()
+      } else {
+        ctx.drawImage(video, 0, 0, width, height)
+      }
 
       // Draw the "pequeno" img in lower right (apenas a imagem overlay, não a do AR)
       if (pequenoImgRef.current && pequenoImgRef.current.complete) {
@@ -860,7 +924,7 @@ export const ARScreen: React.FC<ARScreenProps> = ({
       // Convert to photo
       const dataUrl = canvas.toDataURL('image/png', 0.95)
 
-      // Download the image
+      // Criar um link temporário para download
       const link = document.createElement('a')
       link.href = dataUrl
       link.download = `selfie-ar-${Date.now()}.png`
@@ -869,6 +933,12 @@ export const ARScreen: React.FC<ARScreenProps> = ({
       document.body.removeChild(link)
       
       console.log('[ARScreen] Foto capturada com sucesso')
+      
+      // Aguardar um pouco para garantir que o download foi iniciado
+      // Depois reiniciar a experiência
+      setTimeout(() => {
+        resetExperience()
+      }, 500)
     } catch (err) {
       console.error('[ARScreen] Erro ao capturar foto:', err)
       setPhotoError(err instanceof Error ? err.message : 'Erro ao tirar foto. Tente novamente.')
