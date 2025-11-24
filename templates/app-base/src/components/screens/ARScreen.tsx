@@ -578,6 +578,22 @@ export const ARScreen: React.FC<ARScreenProps> = ({
     // FORÇAR câmera frontal antes de mostrar o overlay
     console.log('[ARScreen] handleRegistrar: Forçando câmera frontal para selfie')
     
+    // Remover a entidade AR do pequeno imediatamente
+    if (pequenoEntityId.current && arSceneRef.current) {
+      console.log('[ARScreen] Removendo entidade AR do pequeno ao clicar em Registrar')
+      arSceneRef.current.removeEntity(pequenoEntityId.current)
+      pequenoEntityId.current = ''
+    }
+    
+    // Esconder a cena AR imediatamente
+    const sceneEl = document.querySelector('a-scene#ar-scene-main') as HTMLElement | null
+    if (sceneEl) {
+      console.log('[ARScreen] Escondendo cena AR ao clicar em Registrar')
+      sceneEl.style.display = 'none'
+      sceneEl.style.visibility = 'hidden'
+      sceneEl.style.opacity = '0'
+    }
+    
     // Primeiro, mostrar o overlay (isso vai acionar o useEffect que força a câmera frontal)
     setShowPequenoOverlay(true)
     setRegistrouPequeno(true)
